@@ -16,7 +16,6 @@ dist-ssr/
 !.env.example
 
 # Local database and uploaded medical documents
-backend/app_historimed.db
 backend/uploaded_exams/
 
 # Logs and editor/OS files
