@@ -1,32 +1,26 @@
-# Logs
-logs
+# Python environments and generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+.output/
+
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+
+# Local database and uploaded medical documents
+backend/app_historimed.db
+backend/uploaded_exams/
+
+# Logs and editor/OS files
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
-*.local
-
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.vscode/
+.idea/
