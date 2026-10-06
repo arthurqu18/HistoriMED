@@ -1,12 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, FileText, Loader2, UploadCloud, X, Sparkles } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, UploadCloud, X, Sparkles, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ClinicalDashboard } from "@/components/ClinicalDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api, OfflineError } from "@/lib/api";
+import { api, OfflineError, type Dashboard } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -33,8 +34,28 @@ function PatientPage() {
   const [drag, setDrag] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
 
   useEffect(() => { if (loaded && (!s || s.role !== "patient")) nav({ to: "/login" }); }, [s, loaded, nav]);
+
+  const loadDashboard = useCallback(async (patientId: number) => {
+    setDashboardLoading(true);
+    setDashboardError("");
+    try {
+      setDashboard(await api.patientDashboard(patientId));
+    } catch (err) {
+      setDashboardError(err instanceof OfflineError ? "Não foi possível conectar à API para carregar seu quadro clínico." : (err as Error).message);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loaded && s?.role === "patient") void loadDashboard(s.user_id);
+  }, [loaded, s?.role, s?.user_id, loadDashboard]);
+
   if (!s || s.role !== "patient") return null;
 
   const pick = (f?: File | null) => {
@@ -54,6 +75,7 @@ function PatientPage() {
       setUploads((u) => [{ key, name: file.name, lab, status: "processing" }, ...u]);
       toast.success("Exame enviado! A IA está analisando.");
       finish(false);
+      window.setTimeout(() => void loadDashboard(s.user_id), 8500);
     } catch (err) {
       if (err instanceof OfflineError) {
         setUploads((u) => [{ key, name: file.name, lab, status: "processing", demo: true }, ...u]);
@@ -65,13 +87,26 @@ function PatientPage() {
 
   return (
     <AppShell session={s}>
-      <div className="mx-auto max-w-2xl space-y-8">
+      <div className="mx-auto max-w-6xl space-y-8">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Olá, {s.name.split(" ")[0]} 👋</h1>
-          <p className="mt-2 text-muted-foreground">Envie seus exames e seu médico terá tudo organizado em um só lugar.</p>
+          <p className="mt-2 text-muted-foreground">Acompanhe seu quadro clínico e envie novos exames por aqui.</p>
         </div>
 
-        <div className="space-y-5 rounded-2xl border bg-card p-6 shadow-card">
+        {dashboardLoading && !dashboard && (
+          <div className="flex items-center justify-center gap-2 rounded-2xl border bg-card p-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando seu quadro clínico...
+          </div>
+        )}
+        {dashboardError && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
+            <span className="flex items-center gap-2"><WifiOff className="h-4 w-4" />{dashboardError}</span>
+            <Button variant="outline" size="sm" onClick={() => void loadDashboard(s.user_id)}>Tentar novamente</Button>
+          </div>
+        )}
+        {dashboard && <ClinicalDashboard dash={dashboard} />}
+
+        <div className="mx-auto w-full max-w-2xl space-y-5 rounded-2xl border bg-card p-6 shadow-card">
           <div
             onClick={() => inputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -106,7 +141,7 @@ function PatientPage() {
         </div>
 
         {uploads.length > 0 && (
-          <div className="space-y-3">
+          <div className="mx-auto w-full max-w-2xl space-y-3">
             <h2 className="font-display text-lg font-semibold">Envios recentes</h2>
             {uploads.map((u) => (
               <div key={u.key} className="flex items-center gap-4 rounded-xl border bg-card p-4 shadow-card">

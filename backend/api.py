@@ -124,10 +124,9 @@ def search_patients(name: str, db: Session = Depends(get_db)):
 
 
 @app.get("/doctor/patient/{patient_id}/dashboard", response_model=PatientDashboardResponse)
+@app.get("/patient/{patient_id}/dashboard", response_model=PatientDashboardResponse)
 def get_patient_dashboard_for_doctor(patient_id: int, db: Session = Depends(get_db)):
-    """
-    Retorna numa única chamada o Resumo de IA e o Histórico de exames para construir o painel gráfico do médico.
-    """
+    """Retorna o resumo clínico e o histórico de exames do paciente."""
     patient = db.query(User).filter(User.id == patient_id, User.role == UserRole.PATIENT).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Paciente não encontrado.")

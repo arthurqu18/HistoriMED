@@ -52,6 +52,7 @@ export const api = {
   searchPatients: (name: string) =>
     req<Patient[]>(`/doctor/search-patients?name=${encodeURIComponent(name)}`),
   dashboard: (id: number) => req<Dashboard>(`/doctor/patient/${id}/dashboard`),
+  patientDashboard: (id: number) => req<Dashboard>(`/patient/${id}/dashboard`),
 };
 
 // ---------- Mock fallback data ----------
