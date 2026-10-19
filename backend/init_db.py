@@ -1,5 +1,5 @@
-from backend.database.connection import engine, Base
-from backend.database.models import User, Exam, ExamResult, ExamSummary
+from database.connection import engine, Base
+from database.models import Exam, ExamResult, ExamSummary
 
 def init_database():
     print("Criando tabelas no banco de dados SQLite...")
