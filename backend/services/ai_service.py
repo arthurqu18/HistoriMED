@@ -8,10 +8,18 @@ from google import genai
 from google.genai import types
 from sqlalchemy.orm import Session
 
-from database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
+from ..database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
 
-# Configuração do cliente Gemini (define a chave GEMINI_API_KEY no .env ou ambiente)
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# O cliente é criado apenas quando uma operação de IA é executada, para que
+# importar a aplicação não exija uma chave Gemini.
+client = None
+
+
+def _get_client():
+    global client
+    if client is None:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    return client
 
 
 # -------------------------------------------------------------------
@@ -81,7 +89,7 @@ def call_gemini_structured_extraction(raw_text: str) -> ExtractedExamData:
         f"TEXTO DO LAUDO:\n{raw_text}"
     )
 
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
@@ -123,7 +131,7 @@ def generate_consolidated_summary(db: Session) -> str:
         f"HISTÓRICO DO PACIENTE:\n{history_str}"
     )
 
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(

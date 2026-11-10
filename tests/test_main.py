@@ -10,10 +10,10 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
-from database.connection import Base, get_db
-from database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
-from api import app
-from services.ai_services import (
+from backend.database.connection import Base, get_db
+from backend.database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
+from backend.api import app
+from backend.services.ai_service import (
     extract_text_from_pdf,
     call_gemini_structured_extraction,
     generate_consolidated_summary,
@@ -83,7 +83,7 @@ def test_extract_text_from_pdf(dummy_pdf_file):
     assert isinstance(text, str)
 
 
-@patch("services.ai_services.client")
+@patch("backend.services.ai_service.client")
 def test_call_gemini_structured_extraction(mock_gemini_client):
     """Testa a conversão da resposta da API do Gemini para os modelos Pydantic."""
     mock_json_response = json.dumps({
@@ -115,7 +115,7 @@ def test_call_gemini_structured_extraction(mock_gemini_client):
     assert extracted.results[0].is_abnormal == 1
 
 
-@patch("services.ai_services.client")
+@patch("backend.services.ai_service.client")
 def test_generate_consolidated_summary(mock_gemini_client, db_session):
     """Testa a geração do resumo consolidado em tópicos a partir do banco de dados."""
     exam = Exam(
@@ -149,9 +149,9 @@ def test_generate_consolidated_summary(mock_gemini_client, db_session):
     mock_gemini_client.models.generate_content.assert_called_once()
 
 
-@patch("services.ai_services.generate_consolidated_summary")
-@patch("services.ai_services.call_gemini_structured_extraction")
-@patch("services.ai_services.extract_text_from_pdf")
+@patch("backend.services.ai_service.generate_consolidated_summary")
+@patch("backend.services.ai_service.call_gemini_structured_extraction")
+@patch("backend.services.ai_service.extract_text_from_pdf")
 def test_process_exam_with_ai_success(
     mock_extract_text, mock_call_gemini, mock_gen_summary, db_session, dummy_pdf_file
 ):
@@ -206,7 +206,7 @@ def test_process_exam_with_ai_success(
 # 2. TESTES DAS ROTAS DA API (api.py)
 # -------------------------------------------------------------------
 
-@patch("api.process_exam_with_ai")
+@patch("backend.api.process_exam_with_ai")
 def test_upload_exam_route(mock_bg_process, client, tmp_path):
     """Testa o upload de um arquivo PDF via endpoint HTTP."""
     fake_pdf_content = b"%PDF-1.4 Mock Content"

@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship
-from database.connection import Base
+from .connection import Base
 
 class ProcessingStatus(str, enum.Enum):
     PENDING = "pending"

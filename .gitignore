@@ -23,3 +23,5 @@ backend/uploaded_exams/
 .DS_Store
 .vscode/
 .idea/
+
+app_historimed.db

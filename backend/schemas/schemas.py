@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
-from database.models import ProcessingStatus
+from ..database.models import ProcessingStatus
 
 # --- EXAM RESULT SCHEMAS ---
 class ExamResultResponse(BaseModel):

@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from database.connection import get_db, engine, Base
-from database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
-from schemas.schemas import ExamResponse, DashboardResponse
-from services.ai_service import process_exam_with_ai
+from .database.connection import get_db, engine, Base
+from .database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
+from .schemas.schemas import ExamResponse, DashboardResponse
+from .services.ai_service import process_exam_with_ai
 
 # Inicializa as tabelas no SQLite
 Base.metadata.create_all(bind=engine)
