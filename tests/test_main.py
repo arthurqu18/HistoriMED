@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
@@ -28,7 +29,9 @@ from backend.services.ai_service import (
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -212,7 +215,7 @@ def test_upload_exam_route(mock_bg_process, client, tmp_path):
     fake_pdf_content = b"%PDF-1.4 Mock Content"
     
     response = client.post(
-        "/upload-exam/",
+        "/patient/upload-exam/",
         data={"laboratory_name": "Laboratório Fleury"},
         files={"file": ("exame.pdf", io.BytesIO(fake_pdf_content), "application/pdf")}
     )
@@ -226,7 +229,7 @@ def test_upload_exam_route(mock_bg_process, client, tmp_path):
 
 def test_get_dashboard_route_empty(client):
     """Testa a rota de dashboard quando ainda não existem dados gravados."""
-    response = client.get("/dashboard")
+    response = client.get("/patient/dashboard")
     assert response.status_code == 200
     data = response.json()
     assert data["summary"] == "Nenhum resumo disponível ainda."
@@ -254,7 +257,7 @@ def test_get_dashboard_route_with_data(client, db_session):
     db_session.add_all([result, summary])
     db_session.commit()
 
-    response = client.get("/dashboard")
+    response = client.get("/patient/dashboard")
     assert response.status_code == 200
     data = response.json()
     

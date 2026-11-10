@@ -25,3 +25,4 @@ backend/uploaded_exams/
 .idea/
 
 app_historimed.db
+uploaded_exams
