@@ -34,4 +34,6 @@ jobs:
 
     - name: Executar testes de unidade e mensurar cobertura (Python)
       run: |
-        pytest --cov=. --cov-report=term-missing --cov-fail-under=80
+        python -m pytest --cov=backend --cov-report=term-missing --cov-fail-under=80
+      env:
+            PYTHONPATH: .
