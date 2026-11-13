@@ -103,13 +103,15 @@ def call_gemini_structured_extraction(raw_text: str) -> ExtractedExamData:
     return ExtractedExamData.model_validate_json(response.text)
 
 
-def generate_consolidated_summary(db: Session) -> str:
+def generate_consolidated_summary(db: Session, user_id: int) -> str:
     """
-    Busca o histórico completo de resultados no banco e gera uma síntese
+    Busca o histórico completo de um usuário no banco e gera uma síntese
     clínica em tópicos consolidados para o dashboard.
     """
     all_results = (
         db.query(ExamResult)
+        .join(Exam)
+        .filter(Exam.user_id == user_id)
         .order_by(ExamResult.measured_at.asc())
         .all()
     )
@@ -151,7 +153,7 @@ def process_exam_with_ai(exam_id: int, db: Session):
     1. Extrai texto do PDF local.
     2. Envia para a IA estruturar.
     3. Popula a tabela ExamResult.
-    4. Atualiza/Gera a ExamSummary global.
+    4. Atualiza/Gera a ExamSummary do usuário.
     """
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
@@ -201,14 +203,15 @@ def process_exam_with_ai(exam_id: int, db: Session):
         db.add_all(results_to_insert)
 
         # 4. Atualização/Geração do Resumo Consolidado
-        summary_text = generate_consolidated_summary(db)
+        summary_text = generate_consolidated_summary(db, user_id=exam.user_id)
         
-        summary = db.query(ExamSummary).first()
+        summary = db.query(ExamSummary).filter(ExamSummary.user_id == exam.user_id).first()
         if summary:
             summary.summary_text = summary_text
             summary.generated_at = datetime.utcnow()
         else:
             summary = ExamSummary(
+                user_id=exam.user_id,
                 summary_text=summary_text,
                 generated_at=datetime.utcnow()
             )

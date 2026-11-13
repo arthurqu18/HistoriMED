@@ -3,6 +3,13 @@ from typing import List, Optional
 from pydantic import BaseModel
 from ..database.models import ProcessingStatus
 
+# --- USER SCHEMAS ---
+class UserCreate(BaseModel):
+    name: str
+
+class UserResponse(UserCreate):
+    id: int
+
 # --- EXAM RESULT SCHEMAS ---
 class ExamResultResponse(BaseModel):
     id: int
@@ -20,6 +27,7 @@ class ExamResultResponse(BaseModel):
 # --- EXAM SCHEMAS ---
 class ExamResponse(BaseModel):
     id: int
+    user_id: int
     file_name: str
     file_url: str
     laboratory_name: Optional[str] = None
@@ -34,6 +42,7 @@ class ExamResponse(BaseModel):
 # --- SUMMARY SCHEMAS ---
 class ExamSummaryResponse(BaseModel):
     id: int
+    user_id: int
     summary_text: str
     generated_at: datetime
 
@@ -41,5 +50,7 @@ class ExamSummaryResponse(BaseModel):
         from_attributes = True
 
 class DashboardResponse(BaseModel):
+    user_id: int
+    user_name: str
     summary: Optional[str] = None
     results_history: List[ExamResultResponse] = []
