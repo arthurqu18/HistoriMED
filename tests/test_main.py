@@ -1,267 +1,312 @@
-import os
 import io
 import json
 from datetime import datetime
-import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi.testclient import TestClient
+from pypdf import PdfWriter
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
-from pypdf import PdfWriter
 
-from backend.database.connection import Base, get_db
-from backend.database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
 from backend.api import app
+from backend.database.connection import Base, get_db
+from backend.database.models import (
+    Exam,
+    ExamResult,
+    ExamSummary,
+    ProcessingStatus,
+    User,
+)
 from backend.services.ai_service import (
-    extract_text_from_pdf,
+    ExtractedExamData,
+    ExtractedExamResult,
     call_gemini_structured_extraction,
+    extract_text_from_pdf,
     generate_consolidated_summary,
     process_exam_with_ai,
-    ExtractedExamData,
-    ExtractedExamResult
 )
 
-# -------------------------------------------------------------------
-# CONFIGURAÇÃO DE AMBIENTE DE TESTE (BANCO DE DADOS EM MEMÓRIA)
-# -------------------------------------------------------------------
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+TEST_DATABASE_URL = "sqlite:///:memory:"
+test_engine = create_engine(
+    TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+TestingSessionLocal = sessionmaker(bind=test_engine)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_session():
-    """Cria tabelas limpas no banco de dados SQLite em memória para cada teste."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=test_engine)
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=test_engine)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def client(db_session):
-    """Substitui a dependência de banco de dados do FastAPI pela sessão de testes."""
-    def _override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+    def override_get_db():
+        yield db_session
 
-    app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
 def dummy_pdf_file(tmp_path):
-    """Gera um arquivo PDF válido temporário em disco para simular o upload."""
-    pdf_path = tmp_path / "exame_teste.pdf"
+    pdf_path = tmp_path / "exam.pdf"
     writer = PdfWriter()
     writer.add_blank_page(width=200, height=200)
-    
-    with open(pdf_path, "wb") as f:
-        writer.write(f)
-        
-    return str(pdf_path)
+    with pdf_path.open("wb") as file:
+        writer.write(file)
+    return pdf_path
 
 
-# -------------------------------------------------------------------
-# 1. TESTES DO SERVIÇO DE IA (ai_services.py)
-# -------------------------------------------------------------------
-
-def test_extract_text_from_pdf(dummy_pdf_file):
-    """Garante que a função de leitura de PDF executa sem falhar."""
-    text = extract_text_from_pdf(dummy_pdf_file)
-    assert isinstance(text, str)
+def create_user(db_session, name):
+    user = User(name=name)
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
 
 
-@patch("backend.services.ai_service.client")
-def test_call_gemini_structured_extraction(mock_gemini_client):
-    """Testa a conversão da resposta da API do Gemini para os modelos Pydantic."""
-    mock_json_response = json.dumps({
-        "laboratory_name": "Laboratório Central",
-        "exam_date": "2026-04-06T11:00:00",
-        "results": [
-            {
-                "category": "Bioquímica",
-                "parameter_name": "Glicemia",
-                "value": 105.0,
-                "unit": "mg/dL",
-                "reference_range": "70 - 99 mg/dL",
-                "is_abnormal": 1
-            }
-        ]
-    })
-    
-    # Mock do objeto de resposta do Gemini
-    mock_response = MagicMock()
-    mock_response.text = mock_json_response
-    mock_gemini_client.models.generate_content.return_value = mock_response
-
-    extracted = call_gemini_structured_extraction("Texto do laudo simulado")
-
-    assert extracted.laboratory_name == "Laboratório Central"
-    assert len(extracted.results) == 1
-    assert extracted.results[0].parameter_name == "Glicemia"
-    assert extracted.results[0].value == 105.0
-    assert extracted.results[0].is_abnormal == 1
-
-
-@patch("backend.services.ai_service.client")
-def test_generate_consolidated_summary(mock_gemini_client, db_session):
-    """Testa a geração do resumo consolidado em tópicos a partir do banco de dados."""
+def create_exam_result(db_session, user, parameter_name):
     exam = Exam(
-        file_name="teste.pdf",
-        file_url="/tmp/teste.pdf",
-        status=ProcessingStatus.COMPLETED
+        user_id=user.id,
+        file_name=f"{parameter_name}.pdf",
+        file_url=f"/tmp/{parameter_name}.pdf",
+        status=ProcessingStatus.COMPLETED,
     )
     db_session.add(exam)
-    db_session.commit()
-
+    db_session.flush()
     result = ExamResult(
         exam_id=exam.id,
-        category="Bioquímica",
-        parameter_name="Hemoglobina Glicada",
-        value=6.2,
-        unit="%",
-        reference_range="Até 5.7%",
-        is_abnormal=1,
-        measured_at=datetime(2026, 4, 6)
+        parameter_name=parameter_name,
+        value=10.0,
+        unit="mg/dL",
+        reference_range="0-20",
+        is_abnormal=0,
+        measured_at=datetime(2026, 4, 6),
     )
     db_session.add(result)
     db_session.commit()
+    return exam
+
+
+def test_register_user_returns_created_user(client):
+    response = client.post("/users/register", json={"name": "Maria"})
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Maria"
+    assert response.json()["id"] > 0
+
+
+def test_register_user_rejects_duplicate_name(client):
+    client.post("/users/register", json={"name": "Maria"})
+
+    response = client.post("/users/register", json={"name": "Maria"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Usuário já cadastrado"
+
+
+def test_show_users_returns_available_users(client):
+    client.post("/users/register", json={"name": "Maria"})
+    client.post("/users/register", json={"name": "João"})
+
+    response = client.get("/users/show_users")
+
+    assert response.status_code == 200
+    assert [user["name"] for user in response.json()] == ["Maria", "João"]
+
+
+@patch("backend.api.process_exam_with_ai")
+def test_upload_exam_associates_user_and_sanitizes_filename(
+    mock_process_exam, client, db_session, tmp_path, monkeypatch
+):
+    user = create_user(db_session, "Maria")
+    monkeypatch.setattr("backend.api.UPLOAD_DIR", str(tmp_path))
+
+    response = client.post(
+        f"/users/{user.id}/upload-exam/",
+        data={"laboratory_name": "Laboratório Central"},
+        files={
+            "file": (
+                "../../laudo com espaços.pdf",
+                io.BytesIO(b"%PDF-1.4 test"),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == user.id
+    assert data["file_name"] == "laudo_com_espa_os.pdf"
+    assert data["laboratory_name"] == "Laboratório Central"
+
+    stored_file = Path(data["file_url"])
+    assert stored_file.parent == tmp_path
+    assert stored_file.exists()
+    assert stored_file.name.endswith("_laudo_com_espa_os.pdf")
+    mock_process_exam.assert_called_once()
+
+
+def test_upload_exam_rejects_unknown_user(client, tmp_path, monkeypatch):
+    monkeypatch.setattr("backend.api.UPLOAD_DIR", str(tmp_path))
+
+    response = client.post(
+        "/users/999/upload-exam/",
+        files={"file": ("exam.pdf", io.BytesIO(b"%PDF-1.4 test"), "application/pdf")},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User não encontrado"
+
+
+def test_dashboard_returns_only_selected_user_data(client, db_session):
+    maria = create_user(db_session, "Maria")
+    joao = create_user(db_session, "João")
+    maria_exam = create_exam_result(db_session, maria, "glicemia")
+    create_exam_result(db_session, joao, "colesterol")
+    db_session.add(
+        ExamSummary(
+            user_id=maria.id,
+            summary_text="Resumo da Maria",
+            generated_at=datetime(2026, 4, 6),
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/users/{maria.id}/dashboard")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_name"] == "Maria"
+    assert data["summary"] == "Resumo da Maria"
+    assert [result["parameter_name"] for result in data["results_history"]] == [
+        "glicemia"
+    ]
+    assert maria_exam.user_id == maria.id
+
+
+def test_dashboard_for_new_user_has_empty_history(client, db_session):
+    user = create_user(db_session, "Maria")
+
+    response = client.get(f"/users/{user.id}/dashboard")
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "Nenhum resumo disponível ainda."
+    assert response.json()["results_history"] == []
+
+
+def test_extract_text_from_pdf_reads_pdf_content(dummy_pdf_file):
+    extracted_text = extract_text_from_pdf(str(dummy_pdf_file))
+
+    assert isinstance(extracted_text, str)
+
+
+@patch("backend.services.ai_service.client")
+def test_call_gemini_structured_extraction_returns_exam_data(mock_client):
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(
+        {
+            "laboratory_name": "Laboratório Central",
+            "exam_date": "2026-04-06T11:00:00",
+            "results": [
+                {
+                    "category": "Bioquímica",
+                    "parameter_name": "Glicemia",
+                    "value": 105.0,
+                    "unit": "mg/dL",
+                    "reference_range": "70 - 99 mg/dL",
+                    "is_abnormal": 1,
+                }
+            ],
+        }
+    )
+    mock_client.models.generate_content.return_value = mock_response
+
+    extracted = call_gemini_structured_extraction("Texto do exame")
+
+    assert extracted.laboratory_name == "Laboratório Central"
+    assert extracted.results[0].parameter_name == "Glicemia"
+    assert extracted.results[0].value == 105.0
+
+
+@patch("backend.services.ai_service.client")
+def test_generate_summary_uses_only_selected_user_results(mock_client, db_session):
+    maria = create_user(db_session, "Maria")
+    joao = create_user(db_session, "João")
+    create_exam_result(db_session, maria, "glicemia")
+    create_exam_result(db_session, joao, "colesterol")
 
     mock_response = MagicMock()
-    mock_response.text = "- Hemoglobina glicada alterada em 6,2%. Sugere atenção metabólica."
-    mock_gemini_client.models.generate_content.return_value = mock_response
+    mock_response.text = "Resumo da Maria"
+    mock_client.models.generate_content.return_value = mock_response
 
-    summary_text = generate_consolidated_summary(db_session)
+    summary = generate_consolidated_summary(db_session, user_id=maria.id)
 
-    assert "Hemoglobina glicada alterada" in summary_text
-    mock_gemini_client.models.generate_content.assert_called_once()
+    assert summary == "Resumo da Maria"
+    prompt = mock_client.models.generate_content.call_args.kwargs["contents"]
+    assert "glicemia" in prompt
+    assert "colesterol" not in prompt
 
 
 @patch("backend.services.ai_service.generate_consolidated_summary")
 @patch("backend.services.ai_service.call_gemini_structured_extraction")
 @patch("backend.services.ai_service.extract_text_from_pdf")
-def test_process_exam_with_ai_success(
-    mock_extract_text, mock_call_gemini, mock_gen_summary, db_session, dummy_pdf_file
+def test_process_exam_with_ai_completes_exam_and_creates_user_summary(
+    mock_extract_text,
+    mock_extract_data,
+    mock_generate_summary,
+    db_session,
+    dummy_pdf_file,
 ):
-    """Testa o pipeline completo de processamento (PDF -> Gemini -> Banco de Dados)."""
-    # 1. Cria o exame pendente
+    user = create_user(db_session, "Maria")
     exam = Exam(
-        file_name="exame_teste.pdf",
-        file_url=dummy_pdf_file,
-        status=ProcessingStatus.PENDING
+        user_id=user.id,
+        file_name="exam.pdf",
+        file_url=str(dummy_pdf_file),
+        status=ProcessingStatus.PENDING,
     )
     db_session.add(exam)
     db_session.commit()
-    db_session.refresh(exam)
 
-    # 2. Configura os mocks
-    mock_extract_text.return_value = "Texto simulado do exame"
-    mock_call_gemini.return_value = ExtractedExamData(
-        laboratory_name="Laboratório HSPE",
+    mock_extract_text.return_value = "Texto do exame"
+    mock_extract_data.return_value = ExtractedExamData(
+        laboratory_name="Laboratório Central",
         exam_date="2026-04-06T11:00:00",
         results=[
             ExtractedExamResult(
-                category="Bioquímica",
-                parameter_name="Ferritina Sérica",
+                parameter_name="Ferritina",
                 value=117.1,
                 unit="ng/mL",
                 reference_range="22 a 299 ng/mL",
-                is_abnormal=0
+                is_abnormal=0,
             )
-        ]
+        ],
     )
-    mock_gen_summary.return_value = "- Ferritina em nível adequado."
+    mock_generate_summary.return_value = "Resumo da Maria"
 
-    # 3. Executa a função do serviço
     process_exam_with_ai(exam.id, db_session)
 
-    # 4. Verificações no banco
     db_session.refresh(exam)
+    summary = db_session.query(ExamSummary).one()
+    result = db_session.query(ExamResult).one()
     assert exam.status == ProcessingStatus.COMPLETED
-    assert exam.laboratory_name == "Laboratório HSPE"
-
-    results = db_session.query(ExamResult).filter(ExamResult.exam_id == exam.id).all()
-    assert len(results) == 1
-    assert results[0].parameter_name == "Ferritina Sérica"
-    assert results[0].value == 117.1
-
-    summary = db_session.query(ExamSummary).first()
-    assert summary is not None
-    assert summary.summary_text == "- Ferritina em nível adequado."
-
-
-# -------------------------------------------------------------------
-# 2. TESTES DAS ROTAS DA API (api.py)
-# -------------------------------------------------------------------
-
-@patch("backend.api.process_exam_with_ai")
-def test_upload_exam_route(mock_bg_process, client, tmp_path):
-    """Testa o upload de um arquivo PDF via endpoint HTTP."""
-    fake_pdf_content = b"%PDF-1.4 Mock Content"
-    
-    response = client.post(
-        "/patient/upload-exam/",
-        data={"laboratory_name": "Laboratório Fleury"},
-        files={"file": ("exame.pdf", io.BytesIO(fake_pdf_content), "application/pdf")}
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["file_name"] == "exame.pdf"
-    assert data["status"] == "pending"
-    assert data["laboratory_name"] == "Laboratório Fleury"
-
-
-def test_get_dashboard_route_empty(client):
-    """Testa a rota de dashboard quando ainda não existem dados gravados."""
-    response = client.get("/patient/dashboard")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["summary"] == "Nenhum resumo disponível ainda."
-    assert data["results_history"] == []
-
-
-def test_get_dashboard_route_with_data(client, db_session):
-    """Testa a rota de dashboard populada com histórico de indicadores."""
-    exam = Exam(file_name="teste.pdf", file_url="/tmp/teste.pdf", status=ProcessingStatus.COMPLETED)
-    db_session.add(exam)
-    db_session.commit()
-
-    result = ExamResult(
-        exam_id=exam.id,
-        category="Hemograma",
-        parameter_name="Hemácias",
-        value=5.72,
-        unit="10^6/mm3",
-        reference_range="4.5 a 5.5",
-        is_abnormal=1,
-        measured_at=datetime(2026, 4, 6)
-    )
-    summary = ExamSummary(summary_text="- Hemácias levemente elevadas.")
-    
-    db_session.add_all([result, summary])
-    db_session.commit()
-
-    response = client.get("/patient/dashboard")
-    assert response.status_code == 200
-    data = response.json()
-    
-    assert data["summary"] == "- Hemácias levemente elevadas."
-    assert len(data["results_history"]) == 1
-    assert data["results_history"][0]["parameter_name"] == "Hemácias"
-    assert data["results_history"][0]["value"] == 5.72
+    assert exam.user_id == user.id
+    assert result.parameter_name == "Ferritina"
+    assert summary.user_id == user.id
+    assert summary.summary_text == "Resumo da Maria"
