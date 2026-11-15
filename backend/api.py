@@ -128,13 +128,22 @@ def get_dashboard(user_id: int, db: Session = Depends(get_db)):
 # --- USABILIDADE
 
 @app.get("/users/{user_id}/dashboard/is_abnormal", response_model=list[ExamResultResponse])
-def is_abnormal(user_id: int, db: Session = Depends(get_db)):
+def get_abnormal_results(user_id: int, db: Session = Depends(get_db)):
     """Retorno parametros do usuario que estão fora do valor padrão."""
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User não encontrado")
 
-    results_alterados = db.query(ExamResult).join(Exam).filter(Exam.user_id == user_id and ExamResult.is_abnormal == 1).order_by(ExamResult.measured_at.asc()).all()
+    results_alterados = (
+        db.query(ExamResult)
+        .join(Exam)
+        .filter(
+            Exam.user_id == user_id,
+            ExamResult.is_abnormal == 1,
+        )
+        .order_by(ExamResult.measured_at.asc())
+        .all()
+    )
 
     return results_alterados

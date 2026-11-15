@@ -50,3 +50,24 @@ def test_dashboard_with_only_abnormal_results(client, create_user, create_exam_r
     data = response.json()
     assert [result['is_abnormal'] for result in data] == [1]
     assert [result['parameter_name'] for result in data] == ["ferro"]
+
+
+def test_abnormal_results_are_isolated_by_user(
+    client, create_user, create_exam_result
+):
+    maria = create_user("Maria")
+    joao = create_user("João")
+    create_exam_result(maria, "glicemia")
+    create_exam_result(joao, "colesterol")
+
+    response = client.get(f"/users/{maria.id}/dashboard/is_abnormal")
+
+    assert response.status_code == 200
+    assert [result["parameter_name"] for result in response.json()] == ["ferro"]
+
+
+def test_abnormal_results_reject_unknown_user(client):
+    response = client.get("/users/999/dashboard/is_abnormal")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User não encontrado"
