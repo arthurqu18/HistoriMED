@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 
 
-API_URL = os.getenv("HISTORIMED_API_URL", "http://localhost:8000").rstrip("/")
+API_URL = os.getenv("HISTORIMED_API_URL", "http://localhost:8001").rstrip("/")
 REQUEST_TIMEOUT = 10
 
 

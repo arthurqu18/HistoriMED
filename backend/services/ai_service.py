@@ -90,7 +90,7 @@ def call_gemini_structured_extraction(raw_text: str) -> ExtractedExamData:
     )
 
     response = _get_client().models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -134,7 +134,7 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
     )
 
     response = _get_client().models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.3,
@@ -201,6 +201,7 @@ def process_exam_with_ai(exam_id: int, db: Session):
             )
 
         db.add_all(results_to_insert)
+        db.flush()
 
         # 4. Atualização/Geração do Resumo Consolidado
         summary_text = generate_consolidated_summary(db, user_id=exam.user_id)
