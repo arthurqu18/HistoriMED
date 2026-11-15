@@ -27,3 +27,4 @@ backend/uploaded_exams/
 app_historimed.db
 uploaded_exams
 tests/.pytest_cache
+streamlit_app.py
