@@ -90,6 +90,33 @@ def show_dashboard(user):
     st.subheader("Resumo")
     st.info(dashboard["summary"] or "Nenhum resumo disponível ainda.")
 
+    abnormal_response = api_request(
+        "GET", f"/users/{user['id']}/dashboard/is_abnormal"
+    )
+    if abnormal_response:
+        abnormal_results = abnormal_response.json()
+        st.subheader("Resultados alterados")
+        if abnormal_results:
+            st.warning(
+                f"{len(abnormal_results)} resultado(s) fora do valor de referência."
+            )
+            st.dataframe(
+                [
+                    {
+                        "Parâmetro": result["parameter_name"],
+                        "Valor": result["value"],
+                        "Unidade": result["unit"] or "",
+                        "Referência": result["reference_range"] or "",
+                        "Data": result["measured_at"][:10],
+                    }
+                    for result in abnormal_results
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.success("Nenhum resultado fora do valor de referência.")
+
     results = dashboard["results_history"]
     st.subheader("Histórico de resultados")
     if results:
