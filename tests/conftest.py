@@ -77,16 +77,26 @@ def create_exam_result(db_session):
         )
         db_session.add(exam)
         db_session.flush()
-        db_session.add(
-            ExamResult(
+        db_session.add_all(
+            [ExamResult(
                 exam_id=exam.id,
                 parameter_name=parameter_name,
                 value=10.0,
                 unit="mg/dL",
                 reference_range="0-20",
                 is_abnormal=0,
-                measured_at=datetime(2026, 4, 6),
+                measured_at=datetime(2026, 4, 6)
+            ),
+            ExamResult(
+                exam_id=exam.id,
+                parameter_name="ferro",
+                value=10.0,
+                unit="mg/dL",
+                reference_range="0-20",
+                is_abnormal=1,
+                measured_at=datetime(2026, 4, 6)
             )
+            ]
         )
         db_session.commit()
         return exam

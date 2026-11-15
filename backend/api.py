@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
 from .database.models import Exam, ExamResult, ExamSummary, ProcessingStatus, User
-from .schemas.schemas import ExamResponse, DashboardResponse, UserCreate, UserResponse
+from .schemas.schemas import ExamResponse, DashboardResponse, UserCreate, UserResponse, ExamResultResponse
 from .services.ai_service import process_exam_with_ai
 
 # Inicializa as tabelas no SQLite
@@ -58,7 +58,8 @@ def show_users(db: Session = Depends(get_db)):
 
     return all_users
 
-# --- Painel de exames
+
+# --- EXAMES
 
 @app.post("/users/{user_id}/upload-exam/", response_model=ExamResponse)
 def upload_exam(
@@ -123,3 +124,17 @@ def get_dashboard(user_id: int, db: Session = Depends(get_db)):
         summary=summary_text,
         results_history=results
     )
+
+# --- USABILIDADE
+
+@app.get("/users/{user_id}/dashboard/is_abnormal", response_model=list[ExamResultResponse])
+def is_abnormal(user_id: int, db: Session = Depends(get_db)):
+    """Retorno parametros do usuario que estão fora do valor padrão."""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User não encontrado")
+
+    results_alterados = db.query(ExamResult).join(Exam).filter(Exam.user_id == user_id and ExamResult.is_abnormal == 1).order_by(ExamResult.measured_at.asc()).all()
+
+    return results_alterados
