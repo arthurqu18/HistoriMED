@@ -137,6 +137,31 @@ def show_exams_for_user(user_id: int, db: Session = Depends(get_db)):
 
     return exames
 
+@app.delete("/users/{user_id}/{exam_id}/delete_exam_for_user", response_model=ExamResponse)
+def delete_exam_for_a_user(user_id: int, exam_id: id, db: Session = Depends(get_db)):
+    """Deleta um exame especifico de um usuário."""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User não encontrado!")
+
+    exam = (
+        db.query(Exam)
+        .filter(
+            Exam.user_id == user_id,
+            Exam.id == exam_id,
+        )
+        .first())
+    
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exame não encontrado!")
+
+    db.delete(exam)
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
 # --- USABILIDADE
 
 @app.get("/users/{user_id}/dashboard/is_abnormal", response_model=list[ExamResultResponse])

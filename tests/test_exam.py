@@ -84,8 +84,36 @@ def test_show_all_exams_for_a_user(client, create_user, create_exam_result):
     assert len(response.json()) == 2
     assert [exam['parameter_name'] for exam in response.json()] == ["glicemia.pdf", "colesterol.pdf"]
 
-def test_show_all_exams_for_a_unknow_user(client, create_user):
+def test_show_all_exams_for_a_unknow_user(client):
     response = client.get("/users/999/show_exams_for_user")
 
     assert response.status_code == 404
     assert response.json()['detail'] == "User não encontrado!"
+
+def test_delete_exam_for_a_user(client, create_user,
+    create_exam_result, db_session):
+
+    user = create_user("João")
+    exam = create_exam_result(user, "glicemia")
+
+    response = client.delete(f"/users/{user.id}/{exam.id}/delete_exam_for_user")
+
+    assert response.status_code == 200
+    assert response.json()['id'] == exam.id
+    assert response.json()['user_id'] == user.id
+
+    exam_db = db_session.query(Exam).filter(Exam.id == exam.id).first()
+    assert None == exam_db
+
+def test_delete_cascade_parameters_for_exam(client, create_user,
+    create_exam_result, db_session):
+
+    user = create_user("João")
+    exam = create_exam_result(user, "glicemia")
+
+    response = client.delete(f"/users/{user.id}/{exam.id}/delete_exam_for_user")
+
+    assert response.status_code == 200
+
+    results = db_session.query(ExamResult).filter(ExamResult.id == exam.id).all()
+    assert results == []
