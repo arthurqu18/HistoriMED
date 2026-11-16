@@ -39,6 +39,14 @@ class ExamResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class ExamSession(BaseModel):
+    file_name: str
+    laboratory_name: str
+    exam_date: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 # --- SUMMARY SCHEMAS ---
 class ExamSummaryResponse(BaseModel):
     id: int

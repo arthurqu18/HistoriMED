@@ -71,3 +71,21 @@ def test_abnormal_results_reject_unknown_user(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User não encontrado"
+
+def test_show_all_exams_for_a_user(client, create_user, create_exam_result):
+
+    user = create_user("Maria")
+    create_exam_result(user, "glicemia")
+    create_exam_result(user, "colesterol")
+
+    response = client.get(f"/users/{user.id}/show_exams_for_user")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+    assert [exam['parameter_name'] for exam in response.json()] == ["glicemia.pdf", "colesterol.pdf"]
+
+def test_show_all_exams_for_a_unknow_user(client, create_user):
+    response = client.get("/users/999/show_exams_for_user")
+
+    assert response.status_code == 404
+    assert response.json()['detail'] == "User não encontrado!"

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
 from .database.models import Exam, ExamResult, ExamSummary, ProcessingStatus, User
-from .schemas.schemas import ExamResponse, DashboardResponse, UserCreate, UserResponse, ExamResultResponse
+from .schemas.schemas import ExamResponse, DashboardResponse, UserCreate, UserResponse, ExamResultResponse, ExamSession
 from .services.ai_service import process_exam_with_ai
 
 # Inicializa as tabelas no SQLite
@@ -124,6 +124,18 @@ def get_dashboard(user_id: int, db: Session = Depends(get_db)):
         summary=summary_text,
         results_history=results
     )
+
+@app.get("/users/{user_id}/show_exams_for_user", response_model=list[ExamSession])
+def show_exams_for_user(user_id: int, db: Session = Depends(get_db)):
+    """Retorna todos os exames listados no user_id especificado"""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User não encontrado!")
+
+    exames = db.query(Exam).filter(Exam.user_id == user_id).all()
+
+    return exames
 
 # --- USABILIDADE
 
