@@ -117,6 +117,35 @@ def show_dashboard(user):
         else:
             st.success("Nenhum resultado fora do valor de referência.")
 
+    st.subheader("Exames enviados")
+    exams_response = api_request(
+        "GET", f"/users/{user['id']}/show_exams_for_user"
+    )
+    if exams_response:
+        exams = exams_response.json()
+        if exams:
+            for exam in exams:
+                details = (
+                    f"**{exam['file_name']}** | "
+                    f"Laboratório: {exam['laboratory_name'] or 'Não informado'} | "
+                    f"Coleta: {(exam['exam_date'] or 'Não informada')[:10]} | "
+                    f"Status: `{exam['status']}`"
+                )
+                col_details, col_delete = st.columns([5, 1])
+                with col_details:
+                    st.markdown(details)
+                with col_delete:
+                    if st.button("Excluir", key=f"delete-exam-{exam['id']}"):
+                        delete_response = api_request(
+                            "DELETE",
+                            f"/users/{user['id']}/{exam['id']}/delete_exam_for_user",
+                        )
+                        if delete_response is not None:
+                            st.success("Exame excluído.")
+                            st.rerun()
+        else:
+            st.info("Nenhum exame enviado.")
+
     results = dashboard["results_history"]
     st.subheader("Histórico de resultados")
     if results:

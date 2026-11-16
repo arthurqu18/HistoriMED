@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
 from .database.models import Exam, ExamResult, ExamSummary, ProcessingStatus, User
-from .schemas.schemas import ExamResponse, DashboardResponse, UserCreate, UserResponse, ExamResultResponse, ExamSession
+from .schemas.schemas import (
+    ExamResponse,
+    DashboardResponse,
+    UserCreate,
+    UserResponse,
+    ExamResultResponse,
+    ExamListResponse,
+)
 from .services.ai_service import process_exam_with_ai
 
 # Inicializa as tabelas no SQLite
@@ -125,7 +132,7 @@ def get_dashboard(user_id: int, db: Session = Depends(get_db)):
         results_history=results
     )
 
-@app.get("/users/{user_id}/show_exams_for_user", response_model=list[ExamSession])
+@app.get("/users/{user_id}/show_exams_for_user", response_model=list[ExamListResponse])
 def show_exams_for_user(user_id: int, db: Session = Depends(get_db)):
     """Retorna todos os exames listados no user_id especificado"""
 
@@ -133,12 +140,17 @@ def show_exams_for_user(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User não encontrado!")
 
-    exames = db.query(Exam).filter(Exam.user_id == user_id).all()
+    exames = (
+        db.query(Exam)
+        .filter(Exam.user_id == user_id)
+        .order_by(Exam.created_at.desc())
+        .all()
+    )
 
     return exames
 
-@app.delete("/users/{user_id}/{exam_id}/delete_exam_for_user", response_model=ExamResponse)
-def delete_exam_for_a_user(user_id: int, exam_id: id, db: Session = Depends(get_db)):
+@app.delete("/users/{user_id}/{exam_id}/delete_exam_for_user", status_code=204)
+def delete_exam_for_a_user(user_id: int, exam_id: int, db: Session = Depends(get_db)):
     """Deleta um exame especifico de um usuário."""
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -156,10 +168,17 @@ def delete_exam_for_a_user(user_id: int, exam_id: id, db: Session = Depends(get_
     if not exam:
         raise HTTPException(status_code=404, detail="Exame não encontrado!")
 
+    file_path = exam.file_url
     db.delete(exam)
     db.commit()
-    db.refresh(exam)
-    return exam
+
+    if file_path:
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass
+
+    return None
 
 
 # --- USABILIDADE

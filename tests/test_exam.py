@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from backend.database.models import ExamSummary
+from backend.database.models import Exam, ExamResult, ExamSummary
 
 
 def test_dashboard_returns_only_selected_user_data(
@@ -82,7 +82,10 @@ def test_show_all_exams_for_a_user(client, create_user, create_exam_result):
 
     assert response.status_code == 200
     assert len(response.json()) == 2
-    assert [exam['parameter_name'] for exam in response.json()] == ["glicemia.pdf", "colesterol.pdf"]
+    assert [exam["file_name"] for exam in response.json()] == [
+        "colesterol.pdf",
+        "glicemia.pdf",
+    ]
 
 def test_show_all_exams_for_a_unknow_user(client):
     response = client.get("/users/999/show_exams_for_user")
@@ -98,12 +101,11 @@ def test_delete_exam_for_a_user(client, create_user,
 
     response = client.delete(f"/users/{user.id}/{exam.id}/delete_exam_for_user")
 
-    assert response.status_code == 200
-    assert response.json()['id'] == exam.id
-    assert response.json()['user_id'] == user.id
+    assert response.status_code == 204
+    assert response.content == b""
 
     exam_db = db_session.query(Exam).filter(Exam.id == exam.id).first()
-    assert None == exam_db
+    assert exam_db is None
 
 def test_delete_cascade_parameters_for_exam(client, create_user,
     create_exam_result, db_session):
@@ -113,7 +115,38 @@ def test_delete_cascade_parameters_for_exam(client, create_user,
 
     response = client.delete(f"/users/{user.id}/{exam.id}/delete_exam_for_user")
 
-    assert response.status_code == 200
+    assert response.status_code == 204
 
-    results = db_session.query(ExamResult).filter(ExamResult.id == exam.id).all()
+    results = db_session.query(ExamResult).filter(ExamResult.exam_id == exam.id).all()
     assert results == []
+
+
+def test_delete_exam_removes_uploaded_file(
+    client, create_user, create_exam_result, db_session, tmp_path
+):
+    user = create_user("Maria")
+    exam = create_exam_result(user, "glicemia")
+    uploaded_file = tmp_path / "glicemia.pdf"
+    uploaded_file.write_bytes(b"pdf")
+    exam.file_url = str(uploaded_file)
+    db_session.commit()
+
+    response = client.delete(f"/users/{user.id}/{exam.id}/delete_exam_for_user")
+
+    assert response.status_code == 204
+    assert not uploaded_file.exists()
+
+
+def test_user_cannot_delete_another_users_exam(
+    client, create_user, create_exam_result
+):
+    owner = create_user("Maria")
+    other_user = create_user("João")
+    exam = create_exam_result(owner, "glicemia")
+
+    response = client.delete(
+        f"/users/{other_user.id}/{exam.id}/delete_exam_for_user"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Exame não encontrado!"

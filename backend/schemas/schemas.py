@@ -39,10 +39,14 @@ class ExamResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class ExamSession(BaseModel):
+class ExamListResponse(BaseModel):
+    id: int
+    user_id: int
     file_name: str
-    laboratory_name: str
-    exam_date: Optional[str] = None
+    laboratory_name: Optional[str] = None
+    exam_date: Optional[datetime] = None
+    status: ProcessingStatus
+    created_at: datetime
 
     class Config:
         from_attributes = True
