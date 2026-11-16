@@ -107,7 +107,7 @@ def test_delete_exam_for_a_user(client, create_user,
     exam_db = db_session.query(Exam).filter(Exam.id == exam.id).first()
     assert exam_db is None
 
-def test_delete_cascade_parameters_for_exam(client, create_user,
+def test_delete_in_cascade_results_for_exam(client, create_user,
     create_exam_result, db_session):
 
     user = create_user("João")
