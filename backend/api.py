@@ -68,6 +68,18 @@ def show_users(db: Session = Depends(get_db)):
 
     return all_users
 
+@app.delete("/users/{user_id}/delete-account", status_code=204)
+def delete_account(user_id: int, db: Session = Depends(get_db)):
+    """Remover conta de usuário e seus exames."""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User não encontrado")
+
+    db.delete(user)
+    db.commit()
+
+    return None
 
 # --- EXAMES
 

@@ -22,8 +22,8 @@ class User(Base):
     sexo = Column(String(20), nullable=True)
 
     # relacionamentos
-    exams = relationship("Exam", back_populates="user")
-    summaries = relationship("ExamSummary", back_populates="user")
+    exams = relationship("Exam", back_populates="user", cascade="all, delete-orphan")
+    summaries = relationship("ExamSummary", back_populates="user", cascade="all, delete-orphan")
 
 class Exam(Base):
     """Armazena o registro do arquivo de exame enviado."""
