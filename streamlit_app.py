@@ -105,6 +105,31 @@ def show_dashboard(user):
         st.session_state.pop("user", None)
         st.rerun()
 
+    st.sidebar.divider()
+    st.sidebar.subheader("Privacidade")
+    st.sidebar.caption(
+        "Esta ação remove permanentemente sua conta, exames, resultados "
+        "e arquivos PDF."
+    )
+    confirm_delete = st.sidebar.checkbox(
+        "Confirmo que quero apagar todos os meus dados",
+        key=f"confirm-delete-{user['id']}",
+    )
+    if st.sidebar.button(
+        "Apagar todos os meus dados",
+        type="secondary",
+        disabled=not confirm_delete,
+        use_container_width=True,
+    ):
+        delete_response = api_request(
+            "DELETE",
+            f"/users/{user['id']}/delete-account",
+        )
+        if delete_response is not None:
+            st.session_state.pop("user", None)
+            st.success("Sua conta e todos os seus dados foram apagados.")
+            st.rerun()
+
     response = api_request("GET", f"/users/{user['id']}/dashboard")
     if response is None:
         return
