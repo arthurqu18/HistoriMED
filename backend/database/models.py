@@ -30,11 +30,7 @@ class Exam(Base):
     __tablename__ = "exams"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     file_name = Column(String(255), nullable=False)
     file_url = Column(String(500), nullable=False)  # S3 URL ou caminho local
     laboratory_name = Column(String(150), nullable=True) # Nome do laboratório[cite: 1, 2]
@@ -52,11 +48,7 @@ class ExamResult(Base):
     __tablename__ = "exam_results"
 
     id = Column(Integer, primary_key=True, index=True)
-    exam_id = Column(
-        Integer,
-        ForeignKey("exams.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
     category = Column(String(100), nullable=True) # Ex: Bioquímica, Hemograma
     parameter_name = Column(String(150), nullable=False, index=True) # Ex: Glicemia em jejum
     value = Column(Float, nullable=False) # Ex: 95.0
@@ -77,11 +69,7 @@ class ExamSummary(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     summary_text = Column(Text, nullable=False) # Texto sumarizado da IA[cite: 1, 3]
     generated_at = Column(DateTime, default=datetime.utcnow)
 
