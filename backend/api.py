@@ -6,7 +6,6 @@ from uuid import uuid4
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
@@ -70,11 +69,43 @@ def show_users(db: Session = Depends(get_db)):
 
 @app.delete("/users/{user_id}/delete-account", status_code=204)
 def delete_account(user_id: int, db: Session = Depends(get_db)):
-    """Remover conta de usuário e seus exames."""
+    """Remove a conta, exames, resultados, resumos e arquivos do usuário."""
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User não encontrado")
+
+    exams = db.query(Exam).filter(Exam.user_id == user_id).all()
+    exam_ids = [exam.id for exam in exams]
+    file_paths = [exam.file_url for exam in exams if exam.file_url]
+
+    if exam_ids:
+        db.query(ExamResult).filter(
+            ExamResult.exam_id.in_(exam_ids)
+        ).delete(synchronize_session=False)
+
+    db.query(Exam).filter(Exam.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(ExamSummary).filter(
+        ExamSummary.user_id == user_id
+    ).delete(synchronize_session=False)
+
+    for file_path in file_paths:
+        if not file_path:
+            continue
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Não foi possível excluir todos os arquivos da conta"
+                ),
+            )
 
     db.delete(user)
     db.commit()
