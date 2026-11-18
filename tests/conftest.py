@@ -56,8 +56,8 @@ def dummy_pdf_file(tmp_path):
 
 @pytest.fixture
 def create_user(db_session):
-    def factory(name):
-        user = User(name=name)
+    def factory(name, **profile):
+        user = User(name=name, idade=profile.get("idade"), sexo=profile.get("sexo"))
         db_session.add(user)
         db_session.commit()
         db_session.refresh(user)

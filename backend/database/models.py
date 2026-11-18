@@ -18,8 +18,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(150), nullable=False)
-    idade = Column(Integer, nullable=False)
-    sexo = Column(String(20), nullable=False)
+    idade = Column(Integer, nullable=True)
+    sexo = Column(String(20), nullable=True)
 
     # relacionamentos
     exams = relationship("Exam", back_populates="user")

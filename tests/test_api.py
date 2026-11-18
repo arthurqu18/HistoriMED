@@ -7,7 +7,7 @@ from unittest.mock import patch
 def test_upload_exam_associates_user_and_sanitizes_filename(
     mock_process_exam, client, db_session, tmp_path, monkeypatch, create_user
 ):
-    user = create_user("Maria")
+    user = create_user("Maria", idade=34, sexo="feminino")
     monkeypatch.setattr("backend.api.UPLOAD_DIR", str(tmp_path))
 
     response = client.post(
@@ -33,6 +33,8 @@ def test_upload_exam_associates_user_and_sanitizes_filename(
     assert stored_file.exists()
     assert stored_file.name.endswith("_laudo_com_espa_os.pdf")
     mock_process_exam.assert_called_once()
+    assert mock_process_exam.call_args.args[1] is db_session
+    assert mock_process_exam.call_args.args[2:] == (34, "feminino")
 
 
 def test_upload_exam_rejects_unknown_user(client, tmp_path, monkeypatch):

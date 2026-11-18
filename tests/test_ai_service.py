@@ -39,18 +39,26 @@ def test_call_gemini_structured_extraction_returns_exam_data(mock_client):
     )
     mock_client.models.generate_content.return_value = mock_response
 
-    extracted = call_gemini_structured_extraction("Texto do exame")
+    extracted = call_gemini_structured_extraction(
+        "Texto do exame",
+        idade=34,
+        sexo="feminino",
+    )
 
     assert extracted.laboratory_name == "Laboratório Central"
     assert extracted.results[0].parameter_name == "Glicemia"
     assert extracted.results[0].value == 105.0
+    prompt = mock_client.models.generate_content.call_args.kwargs["contents"]
+    assert "idade: 34 anos" in prompt
+    assert "sexo biológico: feminino" in prompt
+    assert "faixa de referência exata" in prompt
 
 
 @patch("backend.services.ai_service.client")
 def test_generate_summary_uses_only_selected_user_results(
     mock_client, db_session, create_user, create_exam_result
 ):
-    maria = create_user("Maria")
+    maria = create_user("Maria", idade=34, sexo="feminino")
     joao = create_user("João")
     create_exam_result(maria, "glicemia")
     create_exam_result(joao, "colesterol")
@@ -65,6 +73,8 @@ def test_generate_summary_uses_only_selected_user_results(
     prompt = mock_client.models.generate_content.call_args.kwargs["contents"]
     assert "glicemia" in prompt
     assert "colesterol" not in prompt
+    assert "idade: 34 anos" in prompt
+    assert "sexo biológico: feminino" in prompt
 
 
 @patch("backend.services.ai_service.generate_consolidated_summary")
@@ -78,7 +88,7 @@ def test_process_exam_with_ai_completes_exam_and_creates_user_summary(
     dummy_pdf_file,
     create_user,
 ):
-    user = create_user("Maria")
+    user = create_user("Maria", idade=34, sexo="feminino")
     exam = Exam(
         user_id=user.id,
         file_name="exam.pdf",
@@ -106,6 +116,11 @@ def test_process_exam_with_ai_completes_exam_and_creates_user_summary(
 
     process_exam_with_ai(exam.id, db_session)
 
+    mock_extract_data.assert_called_once_with(
+        "Texto do exame",
+        idade=34,
+        sexo="feminino",
+    )
     db_session.refresh(exam)
     summary = db_session.query(ExamSummary).one()
     result = db_session.query(ExamResult).one()
