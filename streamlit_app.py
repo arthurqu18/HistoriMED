@@ -59,15 +59,38 @@ def show_user_selection():
     with st.expander("Cadastrar usuário"):
         with st.form("register-user"):
             name = st.text_input("Nome")
+            idade = st.number_input(
+                "Idade (opcional)",
+                min_value=0,
+                max_value=130,
+                value=None,
+                step=1,
+            )
+            sexo = st.selectbox(
+                "Sexo biológico (opcional)",
+                options=["Não informar", "Masculino", "Feminino"],
+                index=0,
+            )
             submitted = st.form_submit_button("Cadastrar")
             if submitted:
                 if not name.strip():
                     st.warning("Informe um nome.")
                 else:
+                    idade_value = int(idade) if idade is not None else None
+                    sexo_value = None
+                    if sexo == "Masculino":
+                        sexo_value = "masculino"
+                    elif sexo == "Feminino":
+                        sexo_value = "feminino"
+
                     response = api_request(
                         "POST",
                         "/users/register",
-                        json={"name": name.strip()},
+                        json={
+                            "name": name.strip(),
+                            "idade": idade_value,
+                            "sexo": sexo_value,
+                        },
                     )
                     if response:
                         st.success("Usuário cadastrado.")
