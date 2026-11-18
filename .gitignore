@@ -24,6 +24,5 @@ backend/uploaded_exams/
 .vscode/
 .idea/
 
-app_historimed.db
 uploaded_exams
 tests/.pytest_cache
