@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 from sqlalchemy.orm import Session
 
-from ..database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
+from ..database.models import Exam, ExamResult, ExamSummary, ProcessingStatus, User
 
 # O cliente é criado apenas quando uma operação de IA é executada, para que
 # importar a aplicação não exija uma chave Gemini.
@@ -78,11 +78,30 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     return extracted_text
 
 
-def call_gemini_structured_extraction(raw_text: str) -> ExtractedExamData:
+def call_gemini_structured_extraction(
+    raw_text: str,
+    idade: Optional[int] = None,
+    sexo: Optional[str] = None,
+) -> ExtractedExamData:
     """Envia o texto extraído para o Gemini retornar um JSON rigorosamente estruturado."""
+    profile_parts = []
+    if idade is not None:
+        profile_parts.append(f"idade: {idade} anos")
+    if sexo:
+        profile_parts.append(f"sexo biológico: {sexo}")
+    patient_profile = (
+        "Perfil do paciente: " + "; ".join(profile_parts) + ".\n"
+        if profile_parts
+        else "Perfil do paciente não informado.\n"
+    )
+
     prompt = (
         "Você é um assistente médico especializado em estruturação de laudos laboratoriais.\n"
         "Analise o texto do exame de sangue/laudo a seguir e extraia os dados conforme o schema solicitado.\n"
+        f"{patient_profile}"
+        "Use o perfil informado para selecionar e aplicar a faixa de referência exata para cada parâmetro.\n"
+        "Quando o sexo ou a faixa etária não forem informados, não invente faixas de referência:\n"
+        "use apenas a faixa explícita no laudo ou mantenha o campo como não informado.\n"
         "Atenção especial para:\n"
         "1. Converter números com vírgula para ponto (ex: '117,1' vira 117.1).\n"
         "2. Identificar se o valor está alterado (is_abnormal = 1) ou normal (is_abnormal = 0) comparando o valor com a faixa de referência descrita.\n\n"
@@ -119,6 +138,18 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
     if not all_results:
         return "Nenhum resultado de exame disponível para resumo."
 
+    user = db.query(User).filter(User.id == user_id).first()
+    profile_parts = []
+    if user and user.idade is not None:
+        profile_parts.append(f"idade: {user.idade} anos")
+    if user and user.sexo:
+        profile_parts.append(f"sexo biológico: {user.sexo}")
+    patient_profile = (
+        "Perfil do paciente: " + "; ".join(profile_parts) + ".\n"
+        if profile_parts
+        else "Perfil do paciente não informado.\n"
+    )
+
     # Prepara o histórico para o prompt da IA
     history_str = ""
     for r in all_results:
@@ -128,6 +159,7 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
 
     prompt = (
         "Você é um assistente médico especialista. Com base no histórico de exames laboratoriais abaixo, "
+        f"{patient_profile}"
         "gere um resumo executivo claro, conciso e em tópicos (bullet points) destacando tendências de evolução, "
         "melhorias, pontos de atenção ou alteração e recomendações gerais.\n\n"
         f"HISTÓRICO DO PACIENTE:\n{history_str}"
@@ -147,7 +179,12 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
 # -------------------------------------------------------------------
 # 3. PIPELINE PRINCIPAL CHAMADO PELA API
 # -------------------------------------------------------------------
-def process_exam_with_ai(exam_id: int, db: Session):
+def process_exam_with_ai(
+    exam_id: int,
+    db: Session,
+    idade: Optional[int] = None,
+    sexo: Optional[str] = None,
+):
     """
     Pipeline executado após o upload do PDF:
     1. Extrai texto do PDF local.
@@ -158,6 +195,12 @@ def process_exam_with_ai(exam_id: int, db: Session):
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         return
+
+    if idade is None and sexo is None:
+        user = db.query(User).filter(User.id == exam.user_id).first()
+        if user:
+            idade = user.idade
+            sexo = user.sexo
 
     try:
         exam.status = ProcessingStatus.PROCESSING
@@ -170,7 +213,11 @@ def process_exam_with_ai(exam_id: int, db: Session):
         raw_text = extract_text_from_pdf(exam.file_url)
 
         # 2. Extração via Gemini com Pydantic Structured Output
-        extracted = call_gemini_structured_extraction(raw_text)
+        extracted = call_gemini_structured_extraction(
+            raw_text,
+            idade=idade,
+            sexo=sexo,
+        )
 
         # Atualiza metadata do exame
         if extracted.laboratory_name:

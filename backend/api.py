@@ -6,6 +6,7 @@ from uuid import uuid4
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
@@ -51,7 +52,9 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Usuário já cadastrado")
 
     new_user = User(
-        name = user.name
+        name=user.name,
+        idade=user.idade,
+        sexo=user.sexo,
     )
     db.add(new_user)
     db.commit()
@@ -105,7 +108,13 @@ def upload_exam(
 
     # Dispara a extração OCR + IA em segundo plano
     if background_tasks:
-        background_tasks.add_task(process_exam_with_ai, new_exam.id, db)
+        background_tasks.add_task(
+            process_exam_with_ai,
+            new_exam.id,
+            db,
+            user.idade,
+            user.sexo,
+        )
 
     return new_exam
 

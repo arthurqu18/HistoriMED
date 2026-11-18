@@ -1,11 +1,13 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..database.models import ProcessingStatus
 
 # --- USER SCHEMAS ---
 class UserCreate(BaseModel):
     name: str
+    idade: Optional[int] = Field(default=None, ge=0, le=130)
+    sexo: Optional[str] = Field(default=None, max_length=20)
 
 class UserResponse(UserCreate):
     id: int
