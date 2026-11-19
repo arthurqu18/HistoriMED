@@ -137,6 +137,11 @@ def show_dashboard(user):
     dashboard = response.json()
     st.subheader("Resumo")
     st.info(dashboard["summary"] or "Nenhum resumo disponível ainda.")
+    st.link_button(
+        "Gerar resumo para consulta",
+        f"{API_URL}/users/{user['id']}/report",
+        use_container_width=True,
+    )
 
     abnormal_response = api_request(
         "GET", f"/users/{user['id']}/dashboard/is_abnormal"
