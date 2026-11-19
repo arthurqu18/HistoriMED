@@ -17,6 +17,7 @@ from .schemas.schemas import (
     UserResponse,
     ExamResultResponse,
     ExamListResponse,
+    ExtractResponse,
 )
 from .services.ai_service import process_exam_with_ai
 
@@ -255,3 +256,5 @@ def get_abnormal_results(user_id: int, db: Session = Depends(get_db)):
     )
 
     return results_alterados
+
+@app.get("users/{user_id}/dashboard/extract", response_model=ExtractResponse)
