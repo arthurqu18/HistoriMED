@@ -40,6 +40,58 @@ def test_dashboard_for_new_user_has_empty_history(client, create_user):
     assert response.json()["summary"] == "Nenhum resumo disponível ainda."
     assert response.json()["results_history"] == []
 
+
+def test_consultation_report_contains_summary_and_latest_results(
+    client, db_session, create_user, create_exam_result
+):
+    user = create_user("Maria", idade=34, sexo="feminino")
+    create_exam_result(user, "glicemia")
+    db_session.add(
+        ExamSummary(
+            user_id=user.id,
+            summary_text="Resumo e histórico clinico.",
+            generated_at=datetime(2026, 4, 6),
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/users/{user.id}/report")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    html = response.text
+    assert "Resumo para Consulta" in html
+    assert "Resumo e histórico clinico." in html
+    assert "Maria" in html
+    assert "34 anos" in html
+    assert "Feminino" in html
+    assert "glicemia" in html
+    assert "Últimos resultados laboratoriais" in html
+    assert "window.print()" in html
+
+
+def test_consultation_report_is_isolated_by_user(
+    client, create_user, create_exam_result
+):
+    maria = create_user("Maria")
+    joao = create_user("João")
+    create_exam_result(maria, "glicemia")
+    create_exam_result(joao, "colesterol")
+
+    response = client.get(f"/users/{maria.id}/report")
+
+    assert response.status_code == 200
+    assert "glicemia" in response.text
+    assert "ferro" in response.text
+    assert "colesterol" not in response.text
+
+
+def test_consultation_report_rejects_unknown_user(client):
+    response = client.get("/users/999/report")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User não encontrado"
+
 def test_dashboard_with_only_abnormal_results(client, create_user, create_exam_result):
     user = create_user("João")
     create_exam_result(user, "glicemia")

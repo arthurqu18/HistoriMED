@@ -68,7 +68,3 @@ class DashboardResponse(BaseModel):
     user_name: str
     summary: Optional[str] = None
     results_history: List[ExamResultResponse] = []
-
-# --- Extração
-class ExtractResponse(DashboardResponse, ExamListResponse):
-    pass

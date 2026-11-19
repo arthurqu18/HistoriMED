@@ -1,11 +1,14 @@
 import os
 import re
 import shutil
+from html import escape
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
@@ -17,7 +20,6 @@ from .schemas.schemas import (
     UserResponse,
     ExamResultResponse,
     ExamListResponse,
-    ExtractResponse,
 )
 from .services.ai_service import process_exam_with_ai
 
@@ -257,4 +259,115 @@ def get_abnormal_results(user_id: int, db: Session = Depends(get_db)):
 
     return results_alterados
 
-@app.get("users/{user_id}/dashboard/extract", response_model=ExtractResponse)
+@app.get("/users/{user_id}/report", response_class=HTMLResponse)
+def get_consultation_report(user_id: int, db: Session = Depends(get_db)):
+    """Gera uma página HTML limpa para impressão ou salvar como PDF."""
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User não encontrado")
+
+    summary_obj = (
+        db.query(ExamSummary)
+        .filter(ExamSummary.user_id == user_id)
+        .first()
+    )
+    summary_text = (
+        summary_obj.summary_text
+        if summary_obj
+        else "Nenhum resumo disponível ainda."
+    )
+
+    results = (
+        db.query(ExamResult)
+        .join(Exam)
+        .filter(Exam.user_id == user_id)
+        .order_by(ExamResult.measured_at.desc(), ExamResult.id.desc())
+        .all()
+    )
+
+    latest_by_parameter = {}
+    for result in results:
+        if result.parameter_name not in latest_by_parameter:
+            latest_by_parameter[result.parameter_name] = result
+
+    rows = []
+    for result in latest_by_parameter.values():
+        measured_at = (
+            result.measured_at.strftime("%d/%m/%Y")
+            if result.measured_at
+            else ""
+        )
+        status = "Alterado" if result.is_abnormal == 1 else "Dentro da referência"
+        rows.append(
+            "<tr>"
+            f"<td>{escape(result.parameter_name)}</td>"
+            f"<td>{escape(str(result.value))} {escape(result.unit or '')}</td>"
+            f"<td>{escape(result.reference_range or '')}</td>"
+            f"<td>{escape(measured_at)}</td>"
+            f"<td>{escape(status)}</td>"
+            "</tr>"
+        )
+
+    table_body = (
+        "".join(rows)
+        if rows
+        else "<tr><td colspan=\"5\">Nenhum resultado disponível.</td></tr>"
+    )
+    profile = []
+    if user.idade is not None:
+        profile.append(f"{user.idade} anos")
+    if user.sexo:
+        profile.append(escape(user.sexo.capitalize()))
+    profile_text = " | ".join(profile) if profile else "Não informado"
+    generated_at = datetime.now().strftime("%d/%m/%Y %H:%M")
+    summary_html = escape(summary_text).replace("\n", "<br>")
+
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Resumo para consulta - {escape(user.name)}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; color: #172b4d; margin: 32px; }}
+    .actions {{ margin-bottom: 24px; }}
+    button {{ background: #0b6bcb; color: white; border: 0; border-radius: 6px;
+              padding: 10px 16px; cursor: pointer; }}
+    h1 {{ margin-bottom: 4px; }}
+    .meta {{ color: #52606d; margin-bottom: 24px; }}
+    h2 {{ border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }}
+    .summary {{ border: 1px solid #cbd5e1; border-radius: 8px;
+                padding: 16px; line-height: 1.5; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
+    th, td {{ border: 1px solid #cbd5e1; padding: 8px; text-align: left; }}
+    th {{ background: #eef3f8; }}
+    @media print {{
+      .actions {{ display: none; }}
+      body {{ margin: 12mm; }}
+      tr {{ break-inside: avoid; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div>
+  <h1>Resumo para Consulta</h1>
+  <div class="meta">
+    <strong>Usuário:</strong> {escape(user.name)}<br>
+    <strong>Perfil:</strong> {profile_text}<br>
+    <strong>Gerado em:</strong> {generated_at}
+  </div>
+  <h2>Resumo gerado pela IA</h2>
+  <div class="summary">{summary_html}</div>
+  <h2>Últimos resultados laboratoriais</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Parâmetro</th><th>Resultado</th><th>Referência</th>
+        <th>Data</th><th>Leitura</th>
+      </tr>
+    </thead>
+    <tbody>{table_body}</tbody>
+  </table>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
