@@ -2,9 +2,9 @@ name: CI/CD Pipeline - HistoriMED Backend
 
 on:
   push:
-    branches: [ main, master, main_b ]
+    branches: [ main, master, main_b, developer ]
   pull_request:
-    branches: [ main, master, main_b ]
+    branches: [ main, master, main_b, developer ]
 
 jobs:
   test-backend:
