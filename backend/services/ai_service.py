@@ -158,12 +158,15 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
         history_str += f"- {dt_str} | {r.parameter_name}: {r.value} {r.unit or ''} (Ref: {r.reference_range or 'N/A'}){abnormal_flag}\n"
 
     prompt = (
-        "Você é um assistente médico especialista. Com base no histórico de exames laboratoriais abaixo, "
-        f"{patient_profile}"
-        "gere um resumo executivo claro, conciso e em tópicos (bullet points) destacando tendências de evolução, "
-        "melhorias, pontos de atenção ou alteração e recomendações gerais.\n\n"
-        f"HISTÓRICO DO PACIENTE:\n{history_str}"
-    )
+            "Você é um assistente médico objetivo. Analise o histórico de exames abaixo e gere um resumo ULTRA-CONCISO em português.\n"
+            "Regras estritas:\n"
+            "1. Liste APENAS os pontos de atenção (parâmetros alterados ou tendências preocupantes). NÃO mencione exames normais.\n"
+            "2. Se todos os exames estiverem normais, responda apenas: 'Todos os parâmetros avaliados estão dentro da faixa de normalidade.'\n"
+            "3. Use no máximo 4 tópicos curtos (bullet points usando '- ') para os pontos de atenção.\n"
+            "4. Adicione ao final uma única linha com '**Recomendação:**' seguida de uma orientação breve e direta (máximo 2 frases).\n"
+            "5. Não inclua títulos, cabeçalhos, dados de identificação ou notas introdutórias.\n\n"
+            f"HISTÓRICO DO PACIENTE:\n{history_str}"
+        )
 
     response = _get_client().models.generate_content(
         model="gemini-3.8-flash",
