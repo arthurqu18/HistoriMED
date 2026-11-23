@@ -154,13 +154,21 @@ function Summary({ text }: { text?: string | null }) {
       ) : (
         <ul className="space-y-3">
           {bullets.map((b, i) => (
-            <li key={i} className="flex gap-3 text-sm leading-relaxed"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-success" /> {b}</li>
+            <li key={i} className="flex gap-3 text-sm leading-relaxed"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-success" /> <SummaryLine text={b} /></li>
           ))}
         </ul>
       )}
       <p className="mt-6 text-xs text-muted-foreground">Gerado por IA — revise antes de decisões clínicas.</p>
     </section>
   );
+}
+
+function SummaryLine({ text }: { text: string }) {
+  const parts = text.replace(/&#x20;/gi, " ").split(/(\\?\*{1,2}.+?\\?\*{1,2})/g);
+  return <span>{parts.map((part, i) => {
+    const match = part.match(/^\\?\*{1,2}(.+?)\\?\*{1,2}$/);
+    return match ? <strong key={i}>{match[1]}</strong> : part.replace(/\\\*/g, "*");
+  })}</span>;
 }
 
 function Evolution({ history }: { history: ExamResult[] }) {
