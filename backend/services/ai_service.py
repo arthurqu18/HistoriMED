@@ -1,25 +1,51 @@
 import os
 import json
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 from datetime import datetime
 from typing import List, Optional
 from pypdf import PdfReader
 from pydantic import BaseModel, Field
-from google import genai
-from google.genai import types
 from sqlalchemy.orm import Session
 
 from ..database.models import Exam, ExamResult, ExamSummary, ProcessingStatus, User
 
-# O cliente é criado apenas quando uma operação de IA é executada, para que
-# importar a aplicação não exija uma chave Gemini.
-client = None
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 
 
-def _get_client():
-    global client
-    if client is None:
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    return client
+def _ollama_chat(prompt: str, *, json_schema: Optional[dict] = None,
+                 temperature: float = 0.3) -> str:
+    """Executa uma conversa com o Ollama local e retorna o conteúdo da resposta."""
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+    if json_schema is not None:
+        payload["format"] = json_schema
+
+    request = Request(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=300) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Ollama respondeu com HTTP {exc.code} para o modelo '{OLLAMA_MODEL}': {details}"
+        ) from exc
+    except (URLError, TimeoutError) as exc:
+        raise RuntimeError(
+            f"Não foi possível consultar o Ollama em {OLLAMA_BASE_URL}. "
+            "Confirme que o serviço está ativo e acessível a partir do backend."
+        ) from exc
+    return data["message"]["content"]
 
 
 # -------------------------------------------------------------------
@@ -78,12 +104,12 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     return extracted_text
 
 
-def call_gemini_structured_extraction(
+def call_ollama_structured_extraction(
     raw_text: str,
     idade: Optional[int] = None,
     sexo: Optional[str] = None,
 ) -> ExtractedExamData:
-    """Envia o texto extraído para o Gemini retornar um JSON rigorosamente estruturado."""
+    """Envia o texto extraído para o Ollama retornar dados estruturados em JSON."""
     profile_parts = []
     if idade is not None:
         profile_parts.append(f"idade: {idade} anos")
@@ -108,18 +134,10 @@ def call_gemini_structured_extraction(
         f"TEXTO DO LAUDO:\n{raw_text}"
     )
 
-    response = _get_client().models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ExtractedExamData,
-            temperature=0.1,
-        ),
+    response = _ollama_chat(
+        prompt, json_schema=ExtractedExamData.model_json_schema(), temperature=0.1
     )
-
-    # Retorna os dados convertidos no modelo Pydantic
-    return ExtractedExamData.model_validate_json(response.text)
+    return ExtractedExamData.model_validate_json(response)
 
 
 def generate_consolidated_summary(db: Session, user_id: int) -> str:
@@ -158,7 +176,8 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
         history_str += f"- {dt_str} | {r.parameter_name}: {r.value} {r.unit or ''} (Ref: {r.reference_range or 'N/A'}){abnormal_flag}\n"
 
     prompt = (
-            "Você é um assistente médico objetivo. Analise o histórico de exames abaixo e gere um resumo ULTRA-CONCISO em português.\n"
+            "Você é um assistente médico objetivo. Analise o histórico de exames abaixo e gere um resumo ULTRA-CONCISO em português, use as informações de usuário para embasar a sua resposta\n"
+            f"perfil do usuário: {patient_profile}\n"
             "Regras estritas:\n"
             "1. Liste APENAS os pontos de atenção (parâmetros alterados ou tendências preocupantes). NÃO mencione exames normais.\n"
             "2. Se todos os exames estiverem normais, responda apenas: 'Todos os parâmetros avaliados estão dentro da faixa de normalidade.'\n"
@@ -168,15 +187,7 @@ def generate_consolidated_summary(db: Session, user_id: int) -> str:
             f"HISTÓRICO DO PACIENTE:\n{history_str}"
         )
 
-    response = _get_client().models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.3,
-        ),
-    )
-
-    return response.text
+    return _ollama_chat(prompt, temperature=0.3)
 
 
 # -------------------------------------------------------------------
@@ -215,8 +226,8 @@ def process_exam_with_ai(
             
         raw_text = extract_text_from_pdf(exam.file_url)
 
-        # 2. Extração via Gemini com Pydantic Structured Output
-        extracted = call_gemini_structured_extraction(
+        # 2. Extração via Ollama com schema Pydantic
+        extracted = call_ollama_structured_extraction(
             raw_text,
             idade=idade,
             sexo=sexo,

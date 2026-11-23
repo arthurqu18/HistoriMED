@@ -1,11 +1,11 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from backend.database.models import ExamResult, ExamSummary, Exam, ProcessingStatus
 from backend.services.ai_service import (
     ExtractedExamData,
     ExtractedExamResult,
-    call_gemini_structured_extraction,
+    call_ollama_structured_extraction,
     extract_text_from_pdf,
     generate_consolidated_summary,
     process_exam_with_ai,
@@ -18,10 +18,9 @@ def test_extract_text_from_pdf_reads_pdf_content(dummy_pdf_file):
     assert isinstance(extracted_text, str)
 
 
-@patch("backend.services.ai_service.client")
-def test_call_gemini_structured_extraction_returns_exam_data(mock_client):
-    mock_response = MagicMock()
-    mock_response.text = json.dumps(
+@patch("backend.services.ai_service._ollama_chat")
+def test_call_ollama_structured_extraction_returns_exam_data(mock_ollama_chat):
+    mock_ollama_chat.return_value = json.dumps(
         {
             "laboratory_name": "Laboratório Central",
             "exam_date": "2026-04-06T11:00:00",
@@ -37,9 +36,7 @@ def test_call_gemini_structured_extraction_returns_exam_data(mock_client):
             ],
         }
     )
-    mock_client.models.generate_content.return_value = mock_response
-
-    extracted = call_gemini_structured_extraction(
+    extracted = call_ollama_structured_extraction(
         "Texto do exame",
         idade=34,
         sexo="feminino",
@@ -48,29 +45,27 @@ def test_call_gemini_structured_extraction_returns_exam_data(mock_client):
     assert extracted.laboratory_name == "Laboratório Central"
     assert extracted.results[0].parameter_name == "Glicemia"
     assert extracted.results[0].value == 105.0
-    prompt = mock_client.models.generate_content.call_args.kwargs["contents"]
+    prompt = mock_ollama_chat.call_args.args[0]
     assert "idade: 34 anos" in prompt
     assert "sexo biológico: feminino" in prompt
     assert "faixa de referência exata" in prompt
 
 
-@patch("backend.services.ai_service.client")
+@patch("backend.services.ai_service._ollama_chat")
 def test_generate_summary_uses_only_selected_user_results(
-    mock_client, db_session, create_user, create_exam_result
+    mock_ollama_chat, db_session, create_user, create_exam_result
 ):
     maria = create_user("Maria", idade=34, sexo="feminino")
     joao = create_user("João")
     create_exam_result(maria, "glicemia")
     create_exam_result(joao, "colesterol")
 
-    mock_response = MagicMock()
-    mock_response.text = "Resumo da Maria"
-    mock_client.models.generate_content.return_value = mock_response
+    mock_ollama_chat.return_value = "Resumo da Maria"
 
     summary = generate_consolidated_summary(db_session, user_id=maria.id)
 
     assert summary == "Resumo da Maria"
-    prompt = mock_client.models.generate_content.call_args.kwargs["contents"]
+    prompt = mock_ollama_chat.call_args.args[0]
     assert "glicemia" in prompt
     assert "colesterol" not in prompt
     assert "idade: 34 anos" in prompt
@@ -78,7 +73,7 @@ def test_generate_summary_uses_only_selected_user_results(
 
 
 @patch("backend.services.ai_service.generate_consolidated_summary")
-@patch("backend.services.ai_service.call_gemini_structured_extraction")
+@patch("backend.services.ai_service.call_ollama_structured_extraction")
 @patch("backend.services.ai_service.extract_text_from_pdf")
 def test_process_exam_with_ai_completes_exam_and_creates_user_summary(
     mock_extract_text,
