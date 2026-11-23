@@ -27,3 +27,5 @@ backend/uploaded_exams/
 uploaded_exams
 tests/.pytest_cache
 app_historimed.db-journal
+.coverage
+htmlcov

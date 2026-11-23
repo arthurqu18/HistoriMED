@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from backend.database.models import Exam, ExamResult, ExamSummary
+from backend.database.models import Exam, ExamResult, ExamSummary, ProcessingStatus
 
 
 def test_dashboard_returns_only_selected_user_data(
@@ -123,6 +123,49 @@ def test_abnormal_results_reject_unknown_user(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User não encontrado"
+
+
+def test_abnormal_results_are_empty_when_user_has_no_abnormal_values(
+    client, create_user, db_session
+):
+    user = create_user("Maria")
+    exam = Exam(
+        user_id=user.id,
+        file_name="normal.pdf",
+        file_url="/tmp/normal.pdf",
+        status=ProcessingStatus.COMPLETED,
+    )
+    db_session.add(exam)
+    db_session.flush()
+    db_session.add(
+        ExamResult(
+            exam_id=exam.id,
+            parameter_name="Glicemia",
+            value=90.0,
+            unit="mg/dL",
+            reference_range="70-99",
+            is_abnormal=0,
+            measured_at=datetime(2026, 4, 6),
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/users/{user.id}/dashboard/is_abnormal")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_consultation_report_handles_user_without_exam_data(client, create_user):
+    user = create_user("Maria")
+
+    response = client.get(f"/users/{user.id}/report")
+
+    assert response.status_code == 200
+    assert "Maria" in response.text
+    assert "Nenhum resumo disponível ainda." in response.text
+    assert "Nenhum resultado disponível." in response.text
+
 
 def test_show_all_exams_for_a_user(client, create_user, create_exam_result):
 
