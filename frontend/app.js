@@ -6,6 +6,7 @@ const state = {
   exams: [],
   selectedParameter: null,
   searchQuery: "",
+  onlyAbnormalResults: false,
 };
 
 // --- UTILITÁRIOS DE SEGURANÇA E FORMATAÇÃO ---
@@ -367,7 +368,6 @@ function renderOverviewTab() {
 function renderEvolutionTab() {
   const results = state.dashboard?.results_history || [];
   const select = document.getElementById("parameter-select");
-  const pillsContainer = document.getElementById("parameter-pills");
   const focusContainer = document.getElementById("parameter-focus");
 
   const parameterNames = [...new Set(results.map((r) => r.parameter_name))].sort((a, b) =>
@@ -376,7 +376,6 @@ function renderEvolutionTab() {
 
   if (!parameterNames.length) {
     select.innerHTML = '<option value="">Sem parâmetros</option>';
-    pillsContainer.innerHTML = "";
     focusContainer.innerHTML =
       '<p class="muted-state">Envie um laudo em PDF na aba "Laudos & Upload" para visualizar a evolução dos biomarcadores.</p>';
     renderAllResultsTable();
@@ -401,33 +400,6 @@ function renderEvolutionTab() {
         }>${escapeHtml(param)}</option>`
     )
     .join("");
-
-  const quickPills = prioritized.slice(0, 6);
-  if (!quickPills.includes(state.selectedParameter)) {
-    quickPills[quickPills.length - 1] = state.selectedParameter;
-  }
-
-  pillsContainer.innerHTML = quickPills
-    .map((param) => {
-      const isSelected = param === state.selectedParameter;
-      return `
-        <button
-          type="button"
-          class="param-pill${isSelected ? " active" : ""}"
-          data-param="${escapeHtml(param)}"
-        >
-          ${isSelected ? "✓ " : ""}${escapeHtml(param)}
-        </button>
-      `;
-    })
-    .join("");
-
-  pillsContainer.querySelectorAll(".param-pill").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.selectedParameter = btn.dataset.param;
-      renderEvolutionTab();
-    });
-  });
 
   const history = results.filter((r) => r.parameter_name === state.selectedParameter);
   const latest = history[history.length - 1];
@@ -458,8 +430,8 @@ function renderEvolutionTab() {
 }
 
 function buildSvgAreaChart(history, parameterName, unit, referenceRange) {
-  const width = 820;
-  const height = 270;
+  const width = 720;
+  const height = 220;
   const padLeft = 72;
   const padRight = 36;
   const padTop = 26;
@@ -645,13 +617,13 @@ function renderAllResultsTable() {
   const results = state.dashboard?.results_history || [];
   const query = state.searchQuery.trim().toLowerCase();
 
-  const filtered = query
-    ? results.filter(
-        (r) =>
-          (r.parameter_name || "").toLowerCase().includes(query) ||
-          (r.category || "").toLowerCase().includes(query)
-      )
-    : results;
+  const filtered = results.filter(
+    (r) =>
+      (!state.onlyAbnormalResults || r.is_abnormal === 1) &&
+      (!query ||
+        (r.parameter_name || "").toLowerCase().includes(query) ||
+        (r.category || "").toLowerCase().includes(query))
+  );
 
   if (!filtered.length) {
     tbody.innerHTML =
@@ -930,6 +902,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("results-search").addEventListener("input", (e) => {
     state.searchQuery = e.target.value;
+    renderAllResultsTable();
+  });
+
+  document.getElementById("changed-only-filter").addEventListener("change", (e) => {
+    state.onlyAbnormalResults = e.target.checked;
     renderAllResultsTable();
   });
 

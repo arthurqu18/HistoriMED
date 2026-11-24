@@ -602,41 +602,20 @@
     .mono-num { font-family: var(--font-mono); font-weight: 600; }
     .abnormal-meta { margin-top: 4px; font-size: 0.82rem; color: var(--ochre-deep); }
 
-    /* Pílulas de biomarcadores (estilo Folketrygdfondet + vídeo) */
-    .pill-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 20px;
-    }
-
-    .param-pill {
-      padding: 7px 14px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background-color: var(--bg-surface);
-      color: var(--ink);
-      font-family: inherit;
-      font-size: 0.84rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .param-pill:hover {
-      border-color: var(--blue);
-      background-color: var(--blue-tint);
-    }
-
-    .param-pill.active {
-      background-color: var(--blue-tint);
-      border-color: var(--blue);
-      color: var(--blue-deep);
-      font-weight: 600;
-    }
-
     .selector-box { min-width: 240px; display: grid; gap: 4px; }
     .search-input { max-width: 280px; }
+
+    .history-controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .history-controls .checkbox-label {
+      font-size: 0.86rem;
+      white-space: nowrap;
+    }
 
     .focus-metrics {
       display: grid;
@@ -656,6 +635,11 @@
 
     .chart-stage {
       padding-top: 8px;
+    }
+
+    .chart-stage svg {
+      display: block;
+      max-width: 720px;
     }
 
     .chart-legend {
@@ -959,8 +943,7 @@
         </div>
 
         <nav class="topbar-nav" aria-label="Seções do dossiê">
-          <button class="nav-item active" data-tab="overview">Síntese Clínica</button>
-          <button class="nav-item" data-tab="evolution">Evolução Temporal</button>
+          <button class="nav-item active" data-tab="overview">Síntese e Evolução</button>
           <button class="nav-item" data-tab="anamnesis">Anamnese Prévia</button>
           <button class="nav-item" data-tab="exams">Laudos &amp; Upload</button>
         </nav>
@@ -1016,7 +999,7 @@
         </article>
       </section>
 
-      <!-- ABA 01: SÍNTESE CLÍNICA -->
+      <!-- ABA 01: SÍNTESE CLÍNICA E EVOLUÇÃO TEMPORAL -->
       <section id="tab-overview" class="tab-panel active">
         <div class="two-col-overview">
           <div class="surface-section">
@@ -1043,10 +1026,7 @@
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- ABA 02: EVOLUÇÃO TEMPORAL & BIOMARCADORES -->
-      <section id="tab-evolution" class="tab-panel">
         <div class="surface-section">
           <div class="section-head">
             <div>
@@ -1058,8 +1038,6 @@
               <select id="parameter-select"></select>
             </div>
           </div>
-
-          <div id="parameter-pills" class="pill-bar"></div>
 
           <div id="parameter-focus">
             <p class="muted-state">
@@ -1074,12 +1052,18 @@
               <h2>Histórico de indicadores</h2>
               <p>Todos os resultados extraídos e padronizados por data</p>
             </div>
-            <input
-              id="results-search"
-              type="search"
-              class="search-input"
-              placeholder="Filtrar parâmetro ou categoria..."
-            />
+            <div class="history-controls">
+              <label class="checkbox-label">
+                <input id="changed-only-filter" type="checkbox" />
+                <span>Mostrar apenas parâmetros alterados</span>
+              </label>
+              <input
+                id="results-search"
+                type="search"
+                class="search-input"
+                placeholder="Filtrar parâmetro ou categoria..."
+              />
+            </div>
           </div>
           <div class="table-wrap">
             <table class="clinical-table">
@@ -1099,7 +1083,7 @@
         </div>
       </section>
 
-      <!-- ABA 03: ANAMNESE PRÉVIA -->
+      <!-- ABA 02: ANAMNESE PRÉVIA -->
       <section id="tab-anamnesis" class="tab-panel">
         <div class="two-col-equal">
           <div class="surface-section">
@@ -1179,7 +1163,7 @@
         </div>
       </section>
 
-      <!-- ABA 04: LAUDOS & UPLOAD -->
+      <!-- ABA 03: LAUDOS & UPLOAD -->
       <section id="tab-exams" class="tab-panel">
         <div class="two-col-exams">
           <div class="surface-section">
