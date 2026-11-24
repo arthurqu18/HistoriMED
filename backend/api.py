@@ -8,7 +8,8 @@ from uuid import uuid4
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .database.connection import get_db, engine, Base
@@ -43,6 +44,18 @@ app.add_middleware(
 UPLOAD_DIR = "./uploaded_exams"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR), check_dir=False), name="static")
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def serve_frontend():
+    """Serve a interface web principal do HistoriMED."""
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend não encontrado")
+    return FileResponse(index_path)
 
 # --- USUÁRIOS
 
