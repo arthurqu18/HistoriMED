@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HistoriMED · Inteligência Clínica & Histórico Unificado</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="palette-ribbon" aria-hidden="true"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- TELA 1: SELEÇÃO / CADASTRO DE PACIENTE -->
+  <main id="auth-view" class="auth-shell">
+    <section class="auth-editorial">
+      <div class="orb-cluster" aria-hidden="true">
+        <span class="orb orb-teal"></span>
+        <span class="orb orb-mint"></span>
+        <span class="orb orb-olive"></span>
+        <span class="orb orb-ochre"></span>
+        <span class="orb orb-blue"></span>
+      </div>
+      <p class="eyebrow">PRONTUÁRIO &amp; INTELIGÊNCIA LABORATORIAL</p>
+      <h1 class="editorial-title">HistoriMED</h1>
+      <p class="editorial-lead">
+        Centralize laudos de diferentes laboratórios em uma linha do tempo clínica
+        padronizada, com leitura automatizada de biomarcadores e síntese executiva
+        para consultas médicas.
+      </p>
+      <dl class="editorial-pillars">
+        <div>
+          <dt>01 · Padronização</dt>
+          <dd>Unificação cronológica de parâmetros e faixas de referência.</dd>
+        </div>
+        <div>
+          <dt>02 · Síntese Clínica</dt>
+          <dd>Identificação imediata de desvios e tendências laboratoriais.</dd>
+        </div>
+        <div>
+          <dt>03 · Preparo de Consulta</dt>
+          <dd>Anamnese estruturada e relatório pronto para impressão.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="auth-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2>Acessar Dossiê do Paciente</h2>
+          <p>Selecione um perfil existente ou cadastre um novo paciente.</p>
+        </div>
+
+        <div id="profiles-grid" class="profiles-grid">
+          <p class="muted-state">Carregando perfis...</p>
+        </div>
+
+        <div class="divider-label"><span>Novo cadastro</span></div>
+
+        <form id="register-form" class="clinical-form">
+          <div class="field-group">
+            <label for="reg-name">Nome completo *</label>
+            <input
+              id="reg-name"
+              name="name"
+              type="text"
+              placeholder="Ex.: Laura Silva"
+              required
+            />
+          </div>
+
+          <div class="field-row">
+            <div class="field-group">
+              <label for="reg-age">Idade (anos)</label>
+              <input
+                id="reg-age"
+                name="idade"
+                type="number"
+                min="0"
+                max="130"
+                placeholder="Ex.: 35"
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="reg-sex">Sexo biológico</label>
+              <select id="reg-sex" name="sexo">
+                <option value="">Não informar</option>
+                <option value="feminino">Feminino</option>
+                <option value="masculino">Masculino</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full">
+            Criar dossiê clínico
+          </button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- TELA 2: WORKSPACE CLÍNICO DO PACIENTE -->
+  <div id="workspace-view" class="workspace-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <span class="brand-name">HistoriMED</span>
+            <span class="brand-sub">Dossiê Unificado</span>
+          </div>
+        </div>
+
+        <div class="patient-card">
+          <div id="sidebar-avatar" class="patient-avatar">HM</div>
+          <div class="patient-meta">
+            <strong id="sidebar-name">Paciente</strong>
+            <span id="sidebar-profile">Perfil clínico</span>
+          </div>
+        </div>
+
+        <nav class="nav-menu" aria-label="Seções do dossiê">
+          <button class="nav-item active" data-tab="overview">
+            <span class="nav-index">01</span>
+            <span>Síntese Clínica</span>
+          </button>
+          <button class="nav-item" data-tab="evolution">
+            <span class="nav-index">02</span>
+            <span>Evolução &amp; Biomarcadores</span>
+          </button>
+          <button class="nav-item" data-tab="anamnesis">
+            <span class="nav-index">03</span>
+            <span>Anamnese Prévia</span>
+          </button>
+          <button class="nav-item" data-tab="exams">
+            <span class="nav-index">04</span>
+            <span>Laudos &amp; Upload</span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button id="switch-user-btn" type="button" class="btn btn-outline btn-full">
+          Trocar paciente
+        </button>
+
+        <details class="privacy-box">
+          <summary>Privacidade &amp; LGPD</summary>
+          <p>
+            Remove permanentemente esta conta, laudos PDF e todos os resultados
+            extraídos.
+          </p>
+          <label class="checkbox-label">
+            <input id="confirm-delete-account" type="checkbox" />
+            <span>Confirmo a exclusão definitiva</span>
+          </label>
+          <button
+            id="delete-account-btn"
+            type="button"
+            class="btn btn-danger btn-full"
+            disabled
+          >
+            Apagar todos os dados
+          </button>
+        </details>
+      </div>
+    </aside>
+
+    <main class="content-area">
+      <header class="dossier-header">
+        <div>
+          <p class="eyebrow">REGISTRO CLÍNICO CONSOLIDADO</p>
+          <h1 id="header-patient-name" class="dossier-title">Paciente</h1>
+          <p id="header-patient-meta" class="dossier-subtitle"></p>
+        </div>
+
+        <div class="header-actions">
+          <a
+            id="print-report-link"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary"
+          >
+            Imprimir resumo médico
+          </a>
+        </div>
+      </header>
+
+      <section class="kpi-strip" aria-label="Indicadores gerais">
+        <article class="kpi-card kpi-teal">
+          <span class="kpi-label">Laudos enviados</span>
+          <strong id="kpi-exams" class="kpi-value">0</strong>
+          <span class="kpi-foot">Documentos laboratoriais</span>
+        </article>
+        <article class="kpi-card kpi-blue">
+          <span class="kpi-label">Biomarcadores</span>
+          <strong id="kpi-parameters" class="kpi-value">0</strong>
+          <span class="kpi-foot">Parâmetros padronizados</span>
+        </article>
+        <article class="kpi-card kpi-ochre">
+          <span class="kpi-label">Pontos de atenção</span>
+          <strong id="kpi-abnormal" class="kpi-value">0</strong>
+          <span class="kpi-foot">Fora da faixa de referência</span>
+        </article>
+      </section>
+
+      <!-- ABA 01: SÍNTESE CLÍNICA -->
+      <section id="tab-overview" class="tab-panel active">
+        <div class="two-col-overview">
+          <div class="sheet-card">
+            <div class="sheet-header">
+              <div>
+                <span class="sheet-tag tag-teal">INTELIGÊNCIA CLÍNICA</span>
+                <h2>Parecer Consolidado por IA</h2>
+              </div>
+            </div>
+            <div id="ai-summary-body" class="markdown-body">
+              <p class="muted-state">Nenhum resumo disponível ainda.</p>
+            </div>
+          </div>
+
+          <div class="sheet-card">
+            <div class="sheet-header">
+              <div>
+                <span class="sheet-tag tag-ochre">TRIAGEM DE REFERÊNCIA</span>
+                <h2>Parâmetros Alterados</h2>
+              </div>
+            </div>
+            <div id="abnormal-list" class="abnormal-stack">
+              <p class="muted-state">Nenhum resultado fora da faixa de referência.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 02: EVOLUÇÃO & BIOMARCADORES -->
+      <section id="tab-evolution" class="tab-panel">
+        <div class="sheet-card">
+          <div class="sheet-header wrap-header">
+            <div>
+              <span class="sheet-tag tag-blue">SÉRIE TEMPORAL</span>
+              <h2>Evolução por Biomarcador</h2>
+            </div>
+            <div class="selector-box">
+              <label for="parameter-select">Parâmetro analisado</label>
+              <select id="parameter-select"></select>
+            </div>
+          </div>
+
+          <div id="parameter-focus" class="parameter-focus">
+            <p class="muted-state">
+              Envie um laudo em PDF para visualizar a evolução dos biomarcadores.
+            </p>
+          </div>
+        </div>
+
+        <div class="sheet-card">
+          <div class="sheet-header wrap-header">
+            <div>
+              <span class="sheet-tag tag-mint">BASE COMPLETA</span>
+              <h2>Histórico Consolidado de Resultados</h2>
+            </div>
+            <input
+              id="results-search"
+              type="search"
+              class="search-input"
+              placeholder="Filtrar parâmetro ou categoria..."
+            />
+          </div>
+          <div class="table-wrap">
+            <table class="clinical-table">
+              <thead>
+                <tr>
+                  <th>Parâmetro</th>
+                  <th>Categoria</th>
+                  <th>Resultado</th>
+                  <th>Referência</th>
+                  <th>Data</th>
+                  <th>Leitura</th>
+                </tr>
+              </thead>
+              <tbody id="all-results-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 03: ANAMNESE PRÉVIA -->
+      <section id="tab-anamnesis" class="tab-panel">
+        <div class="two-col-equal">
+          <div class="sheet-card">
+            <div class="sheet-header">
+              <div>
+                <span class="sheet-tag tag-olive">PREPARO PRÉ-CONSULTA</span>
+                <h2>Questionário do Paciente</h2>
+              </div>
+            </div>
+            <form id="anamnesis-form" class="clinical-form">
+              <div class="field-group">
+                <label for="anam-complaint">Motivo principal da consulta / sintomas *</label>
+                <textarea
+                  id="anam-complaint"
+                  rows="3"
+                  placeholder="Ex.: Fadiga nas últimas semanas e revisão periódica de exames."
+                  required
+                ></textarea>
+              </div>
+              <div class="field-row">
+                <div class="field-group">
+                  <label for="anam-duration">Duração dos sintomas</label>
+                  <input
+                    id="anam-duration"
+                    type="text"
+                    placeholder="Ex.: Cerca de 3 semanas"
+                  />
+                </div>
+                <div class="field-group">
+                  <label for="anam-meds">Medicamentos e suplementos</label>
+                  <input
+                    id="anam-meds"
+                    type="text"
+                    placeholder="Ex.: Vitamina D 2000 UI"
+                  />
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="anam-allergies">Alergias conhecidas</label>
+                <input
+                  id="anam-allergies"
+                  type="text"
+                  placeholder="Ex.: Nenhuma conhecida / Dipirona"
+                />
+              </div>
+              <div class="field-group">
+                <label for="anam-notes">Dúvidas ou observações para o médico</label>
+                <textarea
+                  id="anam-notes"
+                  rows="2"
+                  placeholder="Ex.: Avaliar necessidade de ajuste na suplementação."
+                ></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                Atualizar ficha pré-consulta
+              </button>
+            </form>
+          </div>
+
+          <div class="sheet-card dossier-preview-sheet">
+            <div class="sheet-header">
+              <div>
+                <span class="sheet-tag tag-teal">DOCUMENTO ESTRUTURADO</span>
+                <h2>Ficha Pré-Consulta</h2>
+              </div>
+              <button
+                id="download-anamnesis-btn"
+                type="button"
+                class="btn btn-outline btn-sm"
+                disabled
+              >
+                Baixar .txt
+              </button>
+            </div>
+            <pre id="anamnesis-preview" class="anamnesis-document">Preencha o formulário ao lado para gerar a ficha estruturada da consulta.</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 04: LAUDOS & UPLOAD -->
+      <section id="tab-exams" class="tab-panel">
+        <div class="two-col-exams">
+          <div class="sheet-card">
+            <div class="sheet-header">
+              <div>
+                <span class="sheet-tag tag-teal">EXTRAÇÃO AUTOMATIZADA</span>
+                <h2>Enviar Novo Laudo (PDF)</h2>
+              </div>
+            </div>
+            <form id="upload-exam-form" class="clinical-form">
+              <div class="field-group">
+                <label for="exam-lab">Laboratório de origem (opcional)</label>
+                <input
+                  id="exam-lab"
+                  type="text"
+                  placeholder="Ex.: Hermes Pardini, Fleury, Sabin"
+                />
+              </div>
+              <div class="field-group">
+                <label for="exam-file">Arquivo PDF do exame *</label>
+                <input
+                  id="exam-file"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn btn-primary btn-full">
+                Enviar e processar com IA
+              </button>
+            </form>
+          </div>
+
+          <div class="sheet-card">
+            <div class="sheet-header wrap-header">
+              <div>
+                <span class="sheet-tag tag-blue">ARQUIVOS PROCESSADOS</span>
+                <h2>Laudos Enviados</h2>
+              </div>
+              <button id="refresh-exams-btn" type="button" class="btn btn-outline btn-sm">
+                Atualizar status
+              </button>
+            </div>
+            <div id="exams-list" class="exams-stack">
+              <p class="muted-state">Nenhum laudo enviado ainda.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
