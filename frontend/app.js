@@ -153,16 +153,16 @@ function parseReferenceBounds(referenceText) {
     const low = Math.min(numbers[0], numbers[1]);
     const high = Math.max(numbers[0], numbers[1]);
     if (high > low) {
-      return { low, high, mode: "range" };
+      return { low, high };
     }
   }
 
   if (numbers.length === 1) {
     if (text.includes("ATE") || text.includes("ATÉ") || text.includes("INFERIOR") || text.includes("<")) {
-      return { low: 0, high: numbers[0], mode: "upper" };
+      return { low: 0, high: numbers[0] };
     }
     if (text.includes("SUPERIOR") || text.includes("ACIMA") || text.includes(">")) {
-      return { low: numbers[0], high: numbers[0] * 2 || 10, mode: "lower" };
+      return { low: numbers[0], high: numbers[0] * 1.5 || 10 };
     }
   }
 
@@ -215,15 +215,18 @@ function renderProfilesGrid() {
   grid.innerHTML = state.users
     .map(
       (user) => `
-      <button type="button" class="profile-tile" data-user-id="${user.id}">
-        <strong>${escapeHtml(user.name)}</strong>
-        <span>${escapeHtml(formatProfile(user))}</span>
+      <button type="button" class="profile-row-btn" data-user-id="${user.id}">
+        <div>
+          <strong>${escapeHtml(user.name)}</strong>
+          <span>${escapeHtml(formatProfile(user))}</span>
+        </div>
+        <span class="row-arrow" aria-hidden="true">→</span>
       </button>
     `
     )
     .join("");
 
-  grid.querySelectorAll(".profile-tile").forEach((btn) => {
+  grid.querySelectorAll(".profile-row-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.userId);
       const selected = state.users.find((u) => u.id === id);
@@ -275,7 +278,6 @@ async function openWorkspace(user) {
 
   document.getElementById("sidebar-avatar").textContent = getInitials(user.name);
   document.getElementById("sidebar-name").textContent = user.name;
-  document.getElementById("sidebar-profile").textContent = formatProfile(user);
 
   document.getElementById("header-patient-name").textContent = user.name;
   document.getElementById("header-patient-meta").textContent = formatProfile(user);
@@ -360,11 +362,12 @@ function renderOverviewTab() {
     .join("");
 }
 
-// --- ABA 02: EVOLUÇÃO & BIOMARCADORES ---
+// --- ABA 02: EVOLUÇÃO TEMPORAL & GRÁFICO ---
 
 function renderEvolutionTab() {
   const results = state.dashboard?.results_history || [];
   const select = document.getElementById("parameter-select");
+  const pillsContainer = document.getElementById("parameter-pills");
   const focusContainer = document.getElementById("parameter-focus");
 
   const parameterNames = [...new Set(results.map((r) => r.parameter_name))].sort((a, b) =>
@@ -373,14 +376,21 @@ function renderEvolutionTab() {
 
   if (!parameterNames.length) {
     select.innerHTML = '<option value="">Sem parâmetros</option>';
+    pillsContainer.innerHTML = "";
     focusContainer.innerHTML =
       '<p class="muted-state">Envie um laudo em PDF na aba "Laudos & Upload" para visualizar a evolução dos biomarcadores.</p>';
     renderAllResultsTable();
     return;
   }
 
+  const abnormalSet = new Set(state.abnormalResults.map((r) => r.parameter_name));
+  const prioritized = [
+    ...parameterNames.filter((p) => abnormalSet.has(p)),
+    ...parameterNames.filter((p) => !abnormalSet.has(p)),
+  ];
+
   if (!state.selectedParameter || !parameterNames.includes(state.selectedParameter)) {
-    state.selectedParameter = parameterNames[0];
+    state.selectedParameter = prioritized[0];
   }
 
   select.innerHTML = parameterNames
@@ -392,13 +402,39 @@ function renderEvolutionTab() {
     )
     .join("");
 
+  const quickPills = prioritized.slice(0, 6);
+  if (!quickPills.includes(state.selectedParameter)) {
+    quickPills[quickPills.length - 1] = state.selectedParameter;
+  }
+
+  pillsContainer.innerHTML = quickPills
+    .map((param) => {
+      const isSelected = param === state.selectedParameter;
+      return `
+        <button
+          type="button"
+          class="param-pill${isSelected ? " active" : ""}"
+          data-param="${escapeHtml(param)}"
+        >
+          ${isSelected ? "✓ " : ""}${escapeHtml(param)}
+        </button>
+      `;
+    })
+    .join("");
+
+  pillsContainer.querySelectorAll(".param-pill").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.selectedParameter = btn.dataset.param;
+      renderEvolutionTab();
+    });
+  });
+
   const history = results.filter((r) => r.parameter_name === state.selectedParameter);
   const latest = history[history.length - 1];
   const unit = latest.unit || "";
   const isAbnormal = latest.is_abnormal === 1;
 
-  const gaugeHtml = buildReferenceGauge(latest);
-  const chartHtml = buildSvgTrendChart(history, state.selectedParameter, unit);
+  const chartHtml = buildSvgAreaChart(history, state.selectedParameter, unit, latest.reference_range);
 
   focusContainer.innerHTML = `
     <div class="focus-metrics">
@@ -415,76 +451,92 @@ function renderEvolutionTab() {
         <strong>${isAbnormal ? "Fora da referência" : "Dentro da referência"}</strong>
       </div>
     </div>
-    ${gaugeHtml}
     ${chartHtml}
   `;
 
   renderAllResultsTable();
 }
 
-function buildReferenceGauge(latest) {
-  const bounds = parseReferenceBounds(latest.reference_range);
-  if (!bounds) return "";
+function buildSvgAreaChart(history, parameterName, unit, referenceRange) {
+  const width = 820;
+  const height = 270;
+  const padLeft = 72;
+  const padRight = 36;
+  const padTop = 26;
+  const padBottom = 42;
 
-  const span = bounds.high - bounds.low;
-  if (span <= 0) return "";
-
-  // 25% a 75% na barra representa o intervalo de referência normal
-  const ratio = (latest.value - bounds.low) / span;
-  const rawPct = 25 + ratio * 50;
-  const clampedPct = Math.max(4, Math.min(96, rawPct));
-
-  return `
-    <div class="range-gauge-box">
-      <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--ink-muted);">
-        <span>Posicionamento relativo à referência</span>
-        <span class="mono-num">${escapeHtml(latest.reference_range)}</span>
-      </div>
-      <div class="range-track" title="Valor: ${escapeHtml(latest.value)}">
-        <div class="range-marker" style="left: ${clampedPct.toFixed(1)}%;"></div>
-      </div>
-      <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-muted);">
-        <span>Abaixo</span>
-        <span>Faixa esperada</span>
-        <span>Acima</span>
-      </div>
-    </div>
-  `;
-}
-
-function buildSvgTrendChart(history, parameterName, unit) {
-  if (history.length < 2) {
-    return `
-      <div class="svg-chart-wrap">
-        <p class="muted-state" style="margin:0;">
-          Apenas <strong>1 medição</strong> registrada para <strong>${escapeHtml(
-            parameterName
-          )}</strong> até o momento. Novos laudos enviados ao longo do tempo formarão automaticamente a curva evolutiva aqui.
-        </p>
-      </div>
-    `;
+  const bounds = parseReferenceBounds(referenceRange);
+  const values = history.map((h) => Number(h.value));
+  const candidates = [...values];
+  if (bounds) {
+    candidates.push(bounds.low, bounds.high);
   }
 
-  const width = 760;
-  const height = 220;
-  const padLeft = 56;
-  const padRight = 28;
-  const padTop = 24;
-  const padBottom = 38;
-
-  const values = history.map((h) => Number(h.value));
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-  const spread = maxVal - minVal || Math.abs(maxVal) * 0.2 || 1;
-  const yMin = minVal - spread * 0.15;
-  const yMax = maxVal + spread * 0.15;
+  const rawMin = Math.min(...candidates);
+  const rawMax = Math.max(...candidates);
+  const spread = rawMax - rawMin || Math.abs(rawMax) * 0.25 || 1;
+  const yMin = Math.max(0, rawMin - spread * 0.18);
+  const yMax = rawMax + spread * 0.18;
 
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
+  const valueToY = (v) => padTop + ((yMax - v) / (yMax - yMin)) * plotH;
+
+  // Faixa sombreada de referência (como no vídeo demo)
+  let refBandSvg = "";
+  if (bounds) {
+    const yTopRef = Math.max(padTop, Math.min(padTop + plotH, valueToY(bounds.high)));
+    const yBotRef = Math.max(padTop, Math.min(padTop + plotH, valueToY(bounds.low)));
+    const bandHeight = Math.max(4, yBotRef - yTopRef);
+    refBandSvg = `
+      <rect
+        x="${padLeft}"
+        y="${yTopRef.toFixed(1)}"
+        width="${plotW}"
+        height="${bandHeight.toFixed(1)}"
+        fill="rgba(150, 215, 198, 0.28)"
+      />
+      <line
+        x1="${padLeft}"
+        y1="${yTopRef.toFixed(1)}"
+        x2="${width - padRight}"
+        y2="${yTopRef.toFixed(1)}"
+        stroke="#5AA7A7"
+        stroke-dasharray="4 4"
+        stroke-width="1"
+      />
+      <line
+        x1="${padLeft}"
+        y1="${yBotRef.toFixed(1)}"
+        x2="${width - padRight}"
+        y2="${yBotRef.toFixed(1)}"
+        stroke="#5AA7A7"
+        stroke-dasharray="4 4"
+        stroke-width="1"
+      />
+    `;
+  }
+
+  // Grade horizontal e rótulos do eixo Y
+  const tickCount = 4;
+  let gridSvg = "";
+  for (let i = 0; i <= tickCount; i++) {
+    const ratio = i / tickCount;
+    const val = yMax - ratio * (yMax - yMin);
+    const y = padTop + ratio * plotH;
+    const label = Math.abs(val) >= 1000 ? Math.round(val).toLocaleString("pt-BR") : val.toFixed(1);
+    gridSvg += `
+      <line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${width - padRight}" y2="${y.toFixed(1)}" stroke="#E6EAE3" />
+      <text x="${padLeft - 10}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="#526068">${label}</text>
+    `;
+  }
 
   const points = history.map((item, idx) => {
-    const x = padLeft + (idx / (history.length - 1)) * plotW;
-    const y = padTop + ((yMax - Number(item.value)) / (yMax - yMin)) * plotH;
+    const x =
+      history.length === 1
+        ? padLeft + plotW / 2
+        : padLeft + (idx / (history.length - 1)) * plotW;
+    const y = valueToY(Number(item.value));
     return {
       x,
       y,
@@ -494,64 +546,95 @@ function buildSvgTrendChart(history, parameterName, unit) {
     };
   });
 
-  const polylinePoints = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  let lineAndAreaSvg = "";
+  if (points.length >= 2) {
+    const lineCoords = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    const baselineY = (padTop + plotH).toFixed(1);
+    const firstX = points[0].x.toFixed(1);
+    const lastX = points[points.length - 1].x.toFixed(1);
+    const areaCoords = `${firstX},${baselineY} ${lineCoords} ${lastX},${baselineY}`;
 
-  const circlesSvg = points
-    .map(
-      (p) => `
-      <circle
-        cx="${p.x.toFixed(1)}"
-        cy="${p.y.toFixed(1)}"
-        r="5.5"
-        fill="${p.abnormal ? "#C99A2E" : "#246464"}"
-        stroke="#FFFFFF"
-        stroke-width="2"
-      >
-        <title>${escapeHtml(p.date)}: ${escapeHtml(p.value)} ${escapeHtml(unit)}</title>
-      </circle>
-      <text
-        x="${p.x.toFixed(1)}"
-        y="${height - 12}"
-        text-anchor="middle"
-        font-family="IBM Plex Mono, monospace"
-        font-size="11"
-        fill="#526069"
-      >${escapeHtml(p.date)}</text>
-    `
-    )
+    lineAndAreaSvg = `
+      <polygon points="${areaCoords}" fill="url(#historiAreaGrad)" />
+      <polyline
+        fill="none"
+        stroke="#2E4A78"
+        stroke-width="2.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        points="${lineCoords}"
+      />
+    `;
+  }
+
+  const pointsSvg = points
+    .map((p) => {
+      const displayVal = Number(p.value) >= 1000
+        ? Number(p.value).toLocaleString("pt-BR")
+        : p.value;
+      return `
+        <circle
+          cx="${p.x.toFixed(1)}"
+          cy="${p.y.toFixed(1)}"
+          r="6"
+          fill="${p.abnormal ? "#B8861B" : "#2E4A78"}"
+          stroke="#FFFFFF"
+          stroke-width="2.5"
+        >
+          <title>${escapeHtml(p.date)}: ${escapeHtml(displayVal)} ${escapeHtml(unit)}</title>
+        </circle>
+        <text
+          x="${p.x.toFixed(1)}"
+          y="${(p.y - 12).toFixed(1)}"
+          text-anchor="middle"
+          font-family="IBM Plex Mono, monospace"
+          font-size="11"
+          font-weight="600"
+          fill="#142026"
+        >${escapeHtml(displayVal)} ${escapeHtml(unit)}</text>
+        <text
+          x="${p.x.toFixed(1)}"
+          y="${height - 14}"
+          text-anchor="middle"
+          font-family="IBM Plex Mono, monospace"
+          font-size="11"
+          fill="#526068"
+        >${escapeHtml(p.date)}</text>
+      `;
+    })
     .join("");
 
+  const legendNote = bounds
+    ? `<span class="legend-swatch"><span class="swatch-box"></span> Faixa sombreada: referência (${escapeHtml(referenceRange)})</span>`
+    : `<span>Referência: ${escapeHtml(referenceRange || "Não informada")}</span>`;
+
+  const singlePointNote =
+    history.length === 1
+      ? `<span>1 medição registrada · envie novos laudos para acompanhar a curva</span>`
+      : `<span>${history.length} medições registradas</span>`;
+
   return `
-    <div class="svg-chart-wrap">
+    <div class="chart-stage">
+      <div class="chart-legend">
+        ${legendNote}
+        ${singlePointNote}
+      </div>
       <svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Gráfico de evolução de ${escapeHtml(
         parameterName
       )}">
-        <line x1="${padLeft}" y1="${padTop}" x2="${width - padRight}" y2="${padTop}" stroke="#DCE1DA" stroke-dasharray="4 4" />
-        <line x1="${padLeft}" y1="${padTop + plotH / 2}" x2="${width - padRight}" y2="${
-    padTop + plotH / 2
-  }" stroke="#DCE1DA" stroke-dasharray="4 4" />
+        <defs>
+          <linearGradient id="historiAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6C8CBF" stop-opacity="0.32" />
+            <stop offset="100%" stop-color="#96D7C6" stop-opacity="0.02" />
+          </linearGradient>
+        </defs>
+        ${gridSvg}
+        ${refBandSvg}
         <line x1="${padLeft}" y1="${padTop + plotH}" x2="${width - padRight}" y2="${
     padTop + plotH
-  }" stroke="#DCE1DA" />
-
-        <text x="${padLeft - 8}" y="${padTop + 4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="#526069">${yMax.toFixed(
-    1
-  )}</text>
-        <text x="${padLeft - 8}" y="${
-    padTop + plotH + 4
-  }" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="#526069">${yMin.toFixed(
-    1
-  )}</text>
-
-        <polyline
-          fill="none"
-          stroke="#5AA7A7"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          points="${polylinePoints}"
-        />
-        ${circlesSvg}
+  }" stroke="#C8CFC4" />
+        ${lineAndAreaSvg}
+        ${pointsSvg}
       </svg>
     </div>
   `;
@@ -580,15 +663,15 @@ function renderAllResultsTable() {
     .map((r) => {
       const abnormal = r.is_abnormal === 1;
       return `
-        <tr>
+        <tr class="${abnormal ? "row-abnormal" : ""}">
+          <td class="mono-num">${escapeHtml(formatDate(r.measured_at))}</td>
           <td><strong>${escapeHtml(r.parameter_name)}</strong></td>
           <td>${escapeHtml(r.category || "—")}</td>
           <td class="mono-num">${escapeHtml(r.value)} ${escapeHtml(r.unit || "")}</td>
           <td class="mono-num">${escapeHtml(r.reference_range || "—")}</td>
-          <td class="mono-num">${escapeHtml(formatDate(r.measured_at))}</td>
           <td>
             <span class="status-pill ${abnormal ? "pill-abnormal" : "pill-normal"}">
-              ${abnormal ? "Alterado" : "Normal"}
+              ${abnormal ? "Fora da faixa" : "Normal"}
             </span>
           </td>
         </tr>
@@ -730,7 +813,7 @@ function renderExamsTab() {
             <span class="status-pill ${st.cls}">${escapeHtml(st.label)}</span>
             <button
               type="button"
-              class="btn btn-outline btn-sm delete-exam-btn"
+              class="btn btn-danger-soft btn-sm delete-exam-btn"
               data-exam-id="${exam.id}"
             >
               Excluir
