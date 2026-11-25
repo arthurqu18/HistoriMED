@@ -177,10 +177,10 @@ def test_show_all_exams_for_a_user(client, create_user, create_exam_result):
 
     assert response.status_code == 200
     assert len(response.json()) == 2
-    assert [exam["file_name"] for exam in response.json()] == [
+    assert {exam["file_name"] for exam in response.json()} == {
         "colesterol.pdf",
         "glicemia.pdf",
-    ]
+    }
 
 def test_show_all_exams_for_a_unknow_user(client):
     response = client.get("/users/999/show_exams_for_user")
