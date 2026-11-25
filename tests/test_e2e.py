@@ -246,8 +246,10 @@ def test_e2e_biomarker_evolution_chart_and_table_filter(e2e_env, page):
     expect(page.locator("#kpi-abnormal")).to_have_text("1")
     expect(page.locator("#ai-summary-body")).to_contain_text("Pontos de Atenção")
 
-    page.click(".nav-item[data-tab='evolution']")
-    expect(page.locator("#tab-evolution")).to_be_visible()
+    page.click(".nav-item[data-tab='overview']")
+    expect(page.locator("#tab-overview")).to_be_visible()
+    expect(page.locator("#tab-evolution")).to_have_count(0)
+    expect(page.locator("#parameter-select")).to_be_visible()
     expect(page.locator("#parameter-focus svg")).to_be_visible()
     expect(page.locator("#parameter-focus svg polyline")).to_be_visible()
 
@@ -255,6 +257,12 @@ def test_e2e_biomarker_evolution_chart_and_table_filter(e2e_env, page):
     rows = page.locator("#all-results-tbody tr")
     expect(rows).to_have_count(1)
     expect(rows.first).to_contain_text("Colesterol Total")
+
+    page.fill("#results-search", "")
+    page.check("#changed-only-filter")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("Glicemia")
+    expect(rows.first).to_contain_text("118")
 
 
 def test_e2e_upload_pdf_exam_and_delete_account(e2e_env, page):
