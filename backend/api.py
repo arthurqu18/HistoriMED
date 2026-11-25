@@ -272,6 +272,38 @@ def get_abnormal_results(user_id: int, db: Session = Depends(get_db)):
 
     return results_alterados
 
+
+def _render_summary_markdown(summary_text: str) -> str:
+    """Render the summary's bullet lists and bold text as safe HTML."""
+    rendered_lines = []
+    list_open = False
+
+    for raw_line in summary_text.splitlines():
+        line = escape(raw_line.strip())
+        bullet = re.match(r"^[-*]\s+(.+)$", line)
+
+        if bullet:
+            if not list_open:
+                rendered_lines.append("<ul>")
+                list_open = True
+            content = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", bullet.group(1))
+            rendered_lines.append(f"<li>{content}</li>")
+            continue
+
+        if list_open:
+            rendered_lines.append("</ul>")
+            list_open = False
+
+        if line:
+            line = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", line)
+            rendered_lines.append(f"<p>{line}</p>")
+
+    if list_open:
+        rendered_lines.append("</ul>")
+
+    return "\n".join(rendered_lines)
+
+
 @app.get("/users/{user_id}/report", response_class=HTMLResponse)
 def get_consultation_report(user_id: int, db: Session = Depends(get_db)):
     """Gera uma página HTML limpa para impressão ou salvar como PDF."""
@@ -334,7 +366,7 @@ def get_consultation_report(user_id: int, db: Session = Depends(get_db)):
         profile.append(escape(user.sexo.capitalize()))
     profile_text = " | ".join(profile) if profile else "Não informado"
     generated_at = datetime.now().strftime("%d/%m/%Y %H:%M")
-    summary_html = escape(summary_text).replace("\n", "<br>")
+    summary_html = _render_summary_markdown(summary_text)
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -351,6 +383,10 @@ def get_consultation_report(user_id: int, db: Session = Depends(get_db)):
     h2 {{ border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }}
     .summary {{ border: 1px solid #cbd5e1; border-radius: 8px;
                 padding: 16px; line-height: 1.5; }}
+    .summary p {{ margin: 0 0 8px; }}
+    .summary p:last-child {{ margin-bottom: 0; }}
+    .summary ul {{ margin: 0 0 8px; padding-left: 24px; }}
+    .summary li {{ margin: 4px 0; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
     th, td {{ border: 1px solid #cbd5e1; padding: 8px; text-align: left; }}
     th {{ background: #eef3f8; }}

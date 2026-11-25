@@ -70,6 +70,30 @@ def test_consultation_report_contains_summary_and_latest_results(
     assert "window.print()" in html
 
 
+def test_consultation_report_renders_markdown_summary(client, db_session, create_user):
+    user = create_user("Maria")
+    db_session.add(
+        ExamSummary(
+            user_id=user.id,
+            summary_text=(
+                "- **Hemácias**: 5.52 (fora da faixa de normalidade)\n"
+                "- **Vitamina B12**: 2000.0 (fora da faixa de normalidade)\n\n"
+                "**Recomendação:** Realizar exames complementares."
+            ),
+            generated_at=datetime(2026, 4, 6),
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/users/{user.id}/report")
+
+    assert response.status_code == 200
+    assert "<li><strong>Hemácias</strong>: 5.52 (fora da faixa de normalidade)</li>" in response.text
+    assert "<li><strong>Vitamina B12</strong>: 2000.0 (fora da faixa de normalidade)</li>" in response.text
+    assert "<p><strong>Recomendação:</strong> Realizar exames complementares.</p>" in response.text
+    assert "**" not in response.text
+
+
 def test_consultation_report_is_isolated_by_user(
     client, create_user, create_exam_result
 ):
