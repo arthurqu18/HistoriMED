@@ -28,6 +28,10 @@ O **HistoriMED** resolve esse problema oferecendo:
 - **Frontend:** **HTML5**, **CSS3** e **JavaScript (ES6+)** puro, utilizando as fontes **IBM Plex Sans** e **IBM Plex Mono**, gráficos em **SVG** e `localStorage` para persistência da ficha de anamnese pré-consulta.
 - **Testes & CI/CD:** **Pytest** (`9.1.1`), **pytest-cov** (`7.1.0`), **pytest-mock** (`3.17.0`), **HTTPX** (`0.28.1`) e **Playwright** (`1.65.2`) integrados a um pipeline no **GitHub Actions** (`.github/workflows/ci.yml`) executado em Linux, macOS e Windows.
 
+## Versão
+
+Disponibilizamos uma versão demo (Static Site) nesse endereço: [HistoriMED - Inteligência Clínica & Histórico Unificado](https://historimed.onrender.com)
+
 ## Uso de IA
 
 A inteligência artificial foi empregada de duas formas no **HistoriMED**:
@@ -67,7 +71,3 @@ Para executar também os testes End-to-End no navegador, instale o Chromium do P
 ### 4. Executar toda a suíte de testes (Unidade + E2E)
 
     PYTHONPATH=. python -m pytest --cov=backend --cov-report=term-missing
-
-## Versão
-
-Disponibilizamos uma versão demo (Static Site) nesse endereço: [HistoriMED - Inteligência Clínica & Histórico Unificado](https://historimed.onrender.com)
