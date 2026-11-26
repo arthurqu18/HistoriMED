@@ -2,7 +2,7 @@
 
 Plataforma web de centralização de histórico laboratorial e inteligência clínica que transforma laudos médicos (de diferentes laboratórios) em uma linha do tempo padronizada, com extração automatizada de biomarcadores, gráficos evolutivos e síntese executiva para consultas médicas.
 
-## Integrantes
+## Autores
 
 - **Arthur Henrique Quaresma Gomes** (`@arthurqu18`)
 - **Lucas da Silva Santos** (`@lucsantslucas`)
@@ -41,7 +41,7 @@ A inteligência artificial foi empregada de duas formas no **HistoriMED**:
 
 ## Execução dos testes
 
-O projeto conta com **41 testes automatizados**: **36 testes de unidade** (cobrindo API, modelos, regras de usuário, relatórios e pipeline de IA com *mocks*, sem depender de servidor Ollama ativo) e **5 testes End-to-End (E2E)** em navegador real via Playwright.
+Até o momento, o projeto conta com **41 testes automatizados**: **36 testes de unidade** (cobrindo API, modelos, regras de usuário, relatórios e pipeline de IA com *mocks*, sem depender de servidor Ollama ativo) e **5 testes End-to-End (E2E)** em navegador real via Playwright.
 
 ### 1. Pré-requisitos e instalação
 
@@ -67,3 +67,7 @@ Para executar também os testes End-to-End no navegador, instale o Chromium do P
 ### 4. Executar toda a suíte de testes (Unidade + E2E)
 
     PYTHONPATH=. python -m pytest --cov=backend --cov-report=term-missing
+
+## Versão
+
+Disponibilizamos uma versão demo (Static Site) nesse endereço: [HistoriMED - Inteligência Clínica & Histórico Unificado](https://historimed.onrender.com)
