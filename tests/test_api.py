@@ -3,6 +3,23 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+def test_serve_frontend_returns_html_page(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "HistoriMED" in response.text
+
+
+def test_serve_frontend_returns_404_when_missing(client, monkeypatch, tmp_path):
+    monkeypatch.setattr("backend.api.FRONTEND_DIR", tmp_path)
+
+    response = client.get("/")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Frontend não encontrado"
+
+
 @patch("backend.api.process_exam_with_ai")
 def test_upload_exam_associates_user_and_sanitizes_filename(
     mock_process_exam, client, db_session, tmp_path, monkeypatch, create_user
@@ -47,3 +64,27 @@ def test_upload_exam_rejects_unknown_user(client, tmp_path, monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User não encontrado"
+
+
+def test_upload_exam_rejects_invalid_empty_filename(
+    client, tmp_path, monkeypatch, create_user
+):
+    user = create_user("Maria")
+    monkeypatch.setattr("backend.api.UPLOAD_DIR", str(tmp_path))
+
+    response = client.post(
+        f"/users/{user.id}/upload-exam/",
+        files={"file": ("...", io.BytesIO(b"%PDF-1.4 test"), "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Nome de arquivo inválido"
+
+
+def test_delete_unknown_exam_returns_404(client, create_user):
+    user = create_user("Maria")
+
+    response = client.delete(f"/users/{user.id}/9999/delete_exam_for_user")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Exame não encontrado!"

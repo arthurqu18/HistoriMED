@@ -29,3 +29,4 @@ tests/.pytest_cache
 app_historimed.db-journal
 .coverage
 htmlcov
+streamlit_app.py
